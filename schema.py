@@ -126,6 +126,62 @@ class JobSearchResponse(BaseModel):
     total: int = Field(description="Total number of job results matching the search criteria (potentially across all pages).")
     countWithoutFilters: int = Field(description="Total number of job results available before any search filters were applied.")
 
+# Pydantic Model Definitions for Profile Data
+
+class ProfileEmploymentType(BaseModel):
+    """Represents the employment type in a user profile."""
+    id: str = Field(description="Identifier for the employment type.")
+    name: str = Field(description="Name of the employment type (e.g., 'Flexi Time').")
+
+class ProfileSsoc(BaseModel):
+    """Represents an SSOC (Singapore Standard Occupational Classification) entry."""
+    ssoc: str = Field(description="SSOC code.")
+    ssocTitle: str = Field(description="Title or description of the SSOC code.")
+
+class ProfileSsic(BaseModel):
+    """Represents an SSIC (Singapore Standard Industrial Classification) entry."""
+    code: str = Field(description="SSIC code.")
+    description: str = Field(description="Description of the SSIC code.")
+
+class ProfileCountry(BaseModel):
+    """Represents a country entry."""
+    codeNumber: str = Field(description="Numeric code for the country.")
+    code: str = Field(description="Alpha code for the country (e.g., 'AF').")
+    description: str = Field(description="Name of the country.")
+
+class ProfileEmploymentStatus(BaseModel):
+    """Represents the employment status in a user profile."""
+    id: str = Field(description="Identifier for the employment status.")
+    description: str = Field(description="Description of the employment status (e.g., 'Self-employed').")
+
+class ProfileSsecEqa(BaseModel):
+    """Represents an SSEC EQA (Educational Qualification Attainment) entry."""
+    code: str = Field(description="SSEC EQA code.")
+    description: str = Field(description="Description of the SSEC EQA.")
+
+class ProfileSsecFos(BaseModel):
+    """Represents an SSEC FOS (Field of Study) entry."""
+    code: str = Field(description="SSEC FOS code.")
+    description: str = Field(description="Description of the SSEC FOS.")
+
+class ProfileCommonData(BaseModel):
+    """Container for common profile-related data."""
+    employmentTypes: ProfileEmploymentType = Field(description="Details about employment type.")
+    ssocList: ProfileSsoc = Field(description="SSOC information.")
+    ssicList: ProfileSsic = Field(description="SSIC information.")
+    countriesList: ProfileCountry = Field(description="Country information.")
+    employmentStatusList: ProfileEmploymentStatus = Field(description="Employment status information.")
+    ssecEqaList: ProfileSsecEqa = Field(description="SSEC EQA information.")
+    ssecFosList: ProfileSsecFos = Field(description="SSEC FOS information.")
+
+class ProfileData(BaseModel):
+    """Container for the main profile data."""
+    common: ProfileCommonData = Field(description="Common profile data.")
+
+class ProfileResponse(BaseModel):
+    """Root model for the profile API response."""
+    data: ProfileData = Field(description="The profile data.")
+
 # Command-Line Interface (CLI) for testing
 
 def main_cli():

@@ -1,0 +1,174 @@
+#+title: Readme
+
+curl 'https://api.mycareersfuture.gov.sg/profile' \
+  -H 'accept: */*' \
+  -H 'accept-language: en-GB,en;q=0.6' \
+  -H 'content-type: application/json' \
+  -H 'origin: https://www.mycareersfuture.gov.sg' \
+  -H 'priority: u=1, i' \
+  -H 'referer: https://www.mycareersfuture.gov.sg/' \
+  -H 'sec-ch-ua: "Brave";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Linux"' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-site: same-site' \
+  -H 'sec-gpc: 1' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36' \
+  --data-raw '{"operationName":"getAllEntities","variables":{},"query":"query getAllEntities {\n  common {\n    employmentTypes {\n      id\n      name\n    }\n    ssocList {\n      ssoc\n      ssocTitle\n    }\n    ssicList {\n      code\n      description\n    }\n    countriesList {\n      codeNumber\n      description\n      code\n    }\n    employmentStatusList {\n      id\n      description\n    }\n    ssecEqaList {\n      code\n      description\n    }\n    ssecFosList {\n      code\n      description\n    }\n  }\n}\n"}'
+
+
+https://www.mycareersfuture.gov.sg/job/admin?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/accounting?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/advertising?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/architecture?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/banking-finance?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/building-construction?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/consulting?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/customer-service?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/design?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/education-training?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/engineering?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/environment?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/events?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/food-and-beverage?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/general-management?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/general-work?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/healthcare?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/hospitality?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/human-resources?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/information-technology?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/insurance?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/legal?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/logistics?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/manufacturing?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/marketing?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/medical?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/others?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/personal-care?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/precision-engineering?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/professional-services?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/public?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/purchasing?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/real-estate?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/repair-maintenance?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/risk-management?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/sales?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/sciences?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/security?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/social-services?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/telecommunications?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/travel?sortBy=new_posting_date&page=0
+https://www.mycareersfuture.gov.sg/job/wholesale-trade?sortBy=new_posting_date&page=0
+
+curl 'https://api.mycareersfuture.gov.sg/v2/search?limit=20&page=0' \
+  -H 'accept: */*' \
+  -H 'accept-language: en-GB,en;q=0.6' \
+  -H 'content-type: application/json' \
+  -H 'mcf-client: jobseeker' \
+  -H 'origin: https://www.mycareersfuture.gov.sg' \
+  -H 'priority: u=1, i' \
+  -H 'referer: https://www.mycareersfuture.gov.sg/' \
+  -H 'sec-ch-ua: "Brave";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Linux"' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-site: same-site' \
+  -H 'sec-gpc: 1' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36' \
+  --data-raw '{"sessionId":"","categories":["Wholesale Trade"],"postingCompany":[],"sortBy":["new_posting_date"]}'
+
+
+
+
+| url_param_name         | category_name                       |
+| accounting             | "Accounting / Auditing / Taxation"  |
+| admin                  | "Admin / Secretarial"               |
+| advertising            | "Advertising / Media"               |
+| architecture           | "Architecture / Interior Design"    |
+| banking-finance        | "Banking and Finance"               |
+| building-construction  | "Building and Construction"         |
+| consulting             | "Consulting"                        |
+| customer-service       | "Customer Service"                  |
+| design                 | "Design"                            |
+| education-training     | "Education and Training"            |
+| engineering            | "Engineering"                       |
+| entertainment          | "Entertainment"                     |
+| environment            | "Environment / Health"              |
+| events                 | "Events / Promotions"               |
+| food-and-beverage      | "F&B"                               |
+| general-management     | "General Management"                |
+| general-work           | "General Work"                      |
+| healthcare             | "Healthcare / Pharmaceutical"       |
+| hospitality            | "Hospitality"                       |
+| human-resources        | "Human Resources"                   |
+| information-technology | "Information Technology"            |
+| insurance              | "Insurance"                         |
+| legal                  | "Legal"                             |
+| logistics              | "Logistics / Supply Chain"          |
+| manufacturing          | "Manufacturing"                     |
+| marketing              | "Marketing / Public Relations"      |
+| medical                | "Medical / Therapy Services"        |
+| others                 | "Others"                            |
+| personal-care          | "Personal Care / Beauty"            |
+| precision-engineering  | "Precision Engineering"             |
+| professional-services  | "Professional Services"             |
+| public                 | "Public / Civil Service"            |
+| purchasing             | "Purchasing / Merchandising"        |
+| real-estate            | "Real Estate / Property Management" |
+| repair-maintenance     | "Repair and Maintenance"            |
+| risk-management        | "Risk Management"                   |
+| sales                  | "Sales / Retail"                    |
+| sciences               | "Sciences / Laboratory / R&D"       |
+| security               | "Security and Investigation"        |
+| social-services        | "Social Services"                   |
+| telecommunications     | "Telecommunications"                |
+| travel                 | "Travel / Tourism"                  |
+| wholesale-trade        | "Wholesale Trade"                   |
+
+
+
+admin
+accounting
+advertising
+architecture
+banking-finance
+building-construction
+consulting
+customer-service
+design
+education-training
+engineering
+entertainment
+environment
+events
+food-and-beverage
+general-management
+general-work
+healthcare
+hospitality
+human-resources
+information-technology
+insurance
+legal
+logistics
+manufacturing
+marketing
+medical
+others
+personal-care
+precision-engineering
+professional-services
+public
+purchasing
+real-estate
+repair-maintenance
+risk-management
+sales
+sciences
+security
+social-services
+telecommunications
+travel
+wholesale-trade
