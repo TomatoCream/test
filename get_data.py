@@ -5,6 +5,9 @@ import json
 import time
 from typing import List, Dict, Any, Optional
 from enum import Enum
+import os
+import glob
+from datetime import datetime
 
 class JobCategory:
     def __init__(self, url_param_name: str, category_name: str):
@@ -57,6 +60,10 @@ JOB_CATEGORIES: List[JobCategory] = [
     JobCategory("wholesale-trade", "Wholesale Trade"),
 ]
 
+# Maximum pages to fetch in a single run for a category if resuming/starting fresh.
+# This is a safety net to prevent runaway requests if "no results" isn't detected.
+MAX_PAGES_PER_CATEGORY_RUN = 200 
+
 class SortBy(Enum):
     NEW_POSTING_DATE = "new_posting_date"
     RELEVANCY = "relevancy"
@@ -77,12 +84,12 @@ class PayloadBuilder:
         return self
 
     def categories(self, categories: List[JobCategory]) -> 'PayloadBuilder':
-        self._payload["categories"] = [cat.url_param_name for cat in categories]
+        self._payload["categories"] = [cat.category_name for cat in categories]
         return self
     
     def add_category(self, category: JobCategory) -> 'PayloadBuilder':
-        if category.url_param_name not in self._payload["categories"]:
-            self._payload["categories"].append(category.url_param_name)
+        if category.category_name not in self._payload["categories"]:
+            self._payload["categories"].append(category.category_name)
         return self
 
     def posting_companies(self, companies: List[str]) -> 'PayloadBuilder':
@@ -144,73 +151,165 @@ def fetch_page(page: int, payload: Dict[str, Any], limit: int = 100, delay: int 
         # Always sleep to respect rate limits
         time.sleep(delay)
 
-def fetch_all_data(initial_payload: Dict[str, Any], delay: int = 3) -> List[Dict[str, Any]]:
-    """Fetch all pages of data until reaching a page with invalid JSON."""
-    all_results = []
-    page = 0
+def _fetch_and_save_category_data(
+    job_category: JobCategory,
+    date_str: str,
+    target_dir_for_date: str, # This is output_dir_base/date_str
+    delay: int = 3,
+    session_id: Optional[str] = None
+):
+    """Fetch data for a single job category, save page by page, and resume if possible."""
+    print(f"Processing category: {job_category.category_name} ({job_category.url_param_name})")
+    print(f"Target directory for this category's data: {target_dir_for_date}")
+
+    # Determine starting page by checking existing files for this category and date
+    start_page = 0
+    file_pattern = os.path.join(target_dir_for_date, f"{date_str}_{job_category.url_param_name}_*.json")
+    existing_files = glob.glob(file_pattern)
     
+    if existing_files:
+        max_page_found = -1
+        for f_path in existing_files:
+            try:
+                # Extract page number from filename: yyyymmdd_category_PAGENUMBER.json
+                page_num_str = os.path.basename(f_path).split('_')[-1].replace('.json', '')
+                page_num = int(page_num_str)
+                if page_num > max_page_found:
+                    max_page_found = page_num
+            except (ValueError, IndexError) as e:
+                print(f"Warning: Could not parse page number from file {f_path}: {e}")
+        
+        if max_page_found >= 0:
+            start_page = max_page_found + 1
+            print(f"Resuming from page {start_page} for category '{job_category.url_param_name}'.")
+        else:
+            print(f"No valid prior pages found for '{job_category.url_param_name}', starting from page 0.")
+    else:
+        print(f"No existing files found for category '{job_category.url_param_name}' and date '{date_str}'. Starting from page 0.")
+
+    payload_builder = PayloadBuilder()
+    if session_id:
+        payload_builder.session_id(session_id)
+    payload_builder.add_category(job_category) # Only this specific category
+    payload_builder.sort_by([SortBy.NEW_POSTING_DATE]) # Default sort, can be made configurable
+    
+    current_payload = payload_builder.build()
+    print(f"Using payload for {job_category.url_param_name}: {json.dumps(current_payload)}")
+
+    page = start_page
+    pages_fetched_this_run = 0
+    total_results_for_category_this_run = 0
+
     while True:
-        print(f"Fetching page {page}...")
-        # For subsequent pages, we might not need to send the full payload if the API maintains session state
-        # However, to be safe, we send it every time.
-        # If the API has a concept of 'next page' token, that would be more efficient.
-        current_payload = initial_payload.copy() # Ensure we don't modify the original
+        if pages_fetched_this_run >= MAX_PAGES_PER_CATEGORY_RUN:
+            print(f"Reached max pages ({MAX_PAGES_PER_CATEGORY_RUN}) for this run for category '{job_category.url_param_name}'. Stopping.")
+            break
+
+        print(f"Fetching page {page} for category '{job_category.url_param_name}'...")
         
         data = fetch_page(page, payload=current_payload, delay=delay)
         
         if data is None:
-            print(f"Reached end or encountered an error at page {page}")
+            print(f"No data returned or error on page {page} for category '{job_category.url_param_name}'. Stopping this category.")
             break
             
+        # Define file path for the current page's data
+        file_name = f"{date_str}_{job_category.url_param_name}_{page}.json"
+        file_path = os.path.join(target_dir_for_date, file_name)
+
+        # Save the current page's data
+        try:
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+            print(f"Saved page {page} data for '{job_category.url_param_name}' to {file_path}")
+        except Exception as e:
+            print(f"Error saving data for page {page}, category '{job_category.url_param_name}' to {file_path}: {e}")
+            # Decide if we should break or continue if a save fails; for now, break.
+            break 
+            
+        num_results_on_page = 0
         if "results" in data and isinstance(data["results"], list):
-            if not data["results"] and page > 0: # Check if results are empty and it's not the first page
-                print(f"No more results found at page {page}. Total results: {len(all_results)}")
+            num_results_on_page = len(data["results"])
+            total_results_for_category_this_run += num_results_on_page
+            if not data["results"] and page > 0: # Check if results list is empty (and not the first page attempt)
+                print(f"No more results found at page {page} for '{job_category.url_param_name}'.")
                 break
-            all_results.extend(data["results"])
-            print(f"Retrieved {len(data['results'])} results from page {page}. Total so far: {len(all_results)}")
+            print(f"Retrieved {num_results_on_page} results from page {page} for '{job_category.url_param_name}'.")
         else:
-            print(f"Warning: No 'results' list in response on page {page}. Response keys: {data.keys() if isinstance(data, dict) else 'Not a dict'}")
-            if page > 0 : # Stop if no results after the first page to prevent infinite loops on bad responses
+            # If 'results' key is missing or not a list, it's problematic.
+            print(f"Warning: 'results' key missing or not a list in response on page {page} for '{job_category.url_param_name}'. Response keys: {data.keys() if isinstance(data, dict) else 'Not a dict'}")
+            if page > 0 : # Stop if this happens after the first page to prevent loops on bad but non-None responses
+                print(f"Stopping category '{job_category.url_param_name}' due to unexpected response structure after page 0.")
                 break
-            
+            # If it's page 0 and no results, it might just be an empty category.
+            if num_results_on_page == 0:
+                 print(f"No results found on initial page {page} for '{job_category.url_param_name}'. This category might be empty.")
+                 break
+
         page += 1
-        if page > 200: # Safety break for very long runs / potential issues
-            print("Stopping after 200 pages to prevent excessive requests.")
-            break
+        pages_fetched_this_run += 1
     
-    return all_results
+    print(f"Finished processing category: '{job_category.category_name}'. Fetched {pages_fetched_this_run} pages and {total_results_for_category_this_run} results in this run.")
+
+def fetch_all_data(date_str: str, output_dir_base: str = "raw_data", delay: int = 3):
+    """
+    Fetches data for all job categories, saving each page to a separate JSON file
+    organized by date and category.
+
+    Args:
+        date_str (str): The date in 'yyyymmdd' format, used for subdirectory naming.
+        output_dir_base (str): The base directory to store data (e.g., 'raw_data').
+        delay (int): Delay in seconds between API requests.
+    """
+    print(f"Starting data collection for date: {date_str}")
+    print(f"Base output directory: {output_dir_base}")
+
+    # Create the base output directory if it doesn't exist
+    os.makedirs(output_dir_base, exist_ok=True)
+    print(f"Ensured base directory exists: {output_dir_base}")
+
+    # Create the date-specific subdirectory
+    target_dir_for_date = os.path.join(output_dir_base, date_str)
+    os.makedirs(target_dir_for_date, exist_ok=True)
+    print(f"Ensured date directory exists: {target_dir_for_date}")
+    
+    # Get a session ID if needed - for now, not implemented, assuming API handles it or not required per category sequence
+    # session_id = "some_session_id_if_api_needs_it" 
+    session_id = None # Placeholder
+
+    for category in JOB_CATEGORIES:
+        print(f"\\n--- Processing Category: {category.category_name} ---")
+        _fetch_and_save_category_data(
+            job_category=category,
+            date_str=date_str,
+            target_dir_for_date=target_dir_for_date,
+            delay=delay,
+            session_id=session_id
+        )
+        print(f"--- Finished Category: {category.category_name} ---\n")
+    
+    print(f"All categories processed for date {date_str}.")
+
 
 def main():
     # Set delay between requests (in seconds)
     delay = 1 # Adjusted for potentially faster testing, increase if rate limited
     
-    print(f"Starting data collection with {delay} second delay between requests")
+    # Get current date in yyyymmdd format
+    current_date_str = datetime.now().strftime("%Y%m%d")
+    
+    output_directory = "raw_data" # Define the base directory for raw data
 
-    # Example usage of the PayloadBuilder
-    wholesale_trade_category = next((cat for cat in JOB_CATEGORIES if cat.category_name == "Wholesale Trade"), None)
-    
-    if not wholesale_trade_category:
-        print("Error: 'Wholesale Trade' category not found.")
-        return
+    print(f"Starting data collection process for {current_date_str} with {delay} second delay.")
+    print(f"Data will be saved in subdirectories under ./{output_directory}/{current_date_str}/")
 
-    payload_builder = PayloadBuilder()
-    payload_builder.add_category(wholesale_trade_category)
-    payload_builder.sort_by([SortBy.NEW_POSTING_DATE])
-    # You can add more configurations here:
-    # payload_builder.session_id("your_session_id")
-    # payload_builder.add_posting_company("Some Company")
+    fetch_all_data(
+        date_str=current_date_str,
+        output_dir_base=output_directory,
+        delay=delay
+    )
     
-    custom_payload = payload_builder.build()
-    print(f"Generated payload: {json.dumps(custom_payload, indent=2)}")
-    
-    results = fetch_all_data(initial_payload=custom_payload, delay=delay)
-    
-    # Save results to file
-    output_file = "results_custom_payload.json"
-    with open(output_file, "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=2)
-    
-    print(f"Saved {len(results)} job listings to {output_file}")
+    print(f"Data collection finished. Check the '{output_directory}/{current_date_str}' directory.")
 
 if __name__ == "__main__":
     main() 
