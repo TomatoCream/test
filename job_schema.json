@@ -1,0 +1,95 @@
+{
+    "_links": {
+        "next": {
+            "href": "https://api.mycareersfuture.gov.sg/v2/search?limit=100&page=1"
+        },
+        "self": {
+            "href": "https://api.mycareersfuture.gov.sg/v2/search?limit=100"
+        },
+        "first": {
+            "href": "https://api.mycareersfuture.gov.sg/v2/search?limit=100"
+        },
+        "last": {
+            "href": "https://api.mycareersfuture.gov.sg/v2/search?limit=100&page=99"
+        }
+    },
+    "searchRankingId": "b614a760-903b-4d06-ab0a-cd57ddc5dcdb-1747599429.7029264",
+    "results": {
+        "uuid": "b90fdf43c5b5f38eeb4de5a9b60c019f",
+        "address": {
+            "floor": null,
+            "postalCode": "048583",
+            "districts": {
+                "sectors": "01",
+                "location": "D05 Clementi New Town, Hong Leong Garden, Pasir Panjang",
+                "region": "Islandwide",
+                "id": 998,
+                "regionId": "Islandwide"
+            },
+            "isOverseas": false,
+            "foreignAddress2": null,
+            "street": "LORONG 23 GEYLANG",
+            "overseasCountry": null,
+            "block": "391B",
+            "lat": 1.3495673698115,
+            "lng": 103.881336904053,
+            "unit": null,
+            "building": "MARINA BAY FINANCIAL CENTRE",
+            "foreignAddress1": null
+        },
+        "schemes": [],
+        "skills": {
+            "uuid": "023157b1a3d9ee4f0ed14b9801a26ac4",
+            "skill": "Oral & Written Communication Skills"
+        },
+        "status": {
+            "id": "102",
+            "jobStatus": "Re-open"
+        },
+        "title": "Senior Manager / Associate Director, Project - Business Optimization (1 Year Contract)",
+        "positionLevels": {
+            "position": "Senior Management",
+            "id": 12
+        },
+        "salary": {
+            "maximum": 45000,
+            "minimum": 40000,
+            "type": {
+                "salaryType": "Monthly"
+            }
+        },
+        "metadata": {
+            "jobDetailsUrl": "https://www.mycareersfuture.gov.sg/job/building-construction/workplace-safety-health-officer-construction-engineering-projects-good-job-creations-c4a21c065030995d79b714e5c76fe9c4",
+            "isPostedOnBehalf": false,
+            "isHideHiringEmployerName": false,
+            "jobPostId": "MCF-2025-0714896",
+            "totalNumberJobApplication": 0,
+            "isHideSalary": false,
+            "newPostingDate": "2025-05-18",
+            "updatedAt": "2025-05-18T15:37:25"
+        },
+        "flexibleWorkArrangements": [],
+        "score": 0.2504977941195275,
+        "postedCompany": {
+            "uen": "202311633M",
+            "logoUploadPath": "https://static.mycareersfuture.gov.sg/images/company/logos/a7428c521d6204b09d3a66c85822933d/wallem-shipmanagement-singapore.jpg",
+            "responsiveEmployer": {
+                "isResponsive": true
+            },
+            "logoFileName": "a7428c521d6204b09d3a66c85822933d/wallem-shipmanagement-singapore.jpg",
+            "name": "STANDARD CHARTERED BANK (SINGAPORE) LIMITED"
+        },
+        "employmentTypes": {
+            "id": 10,
+            "employmentType": "Internship/Attachment"
+        },
+        "hiringCompany": null,
+        "shiftPattern": null,
+        "categories": {
+            "id": 41,
+            "category": "Real Estate / Property Management"
+        }
+    },
+    "total": 10000,
+    "countWithoutFilters": 71236
+}
