@@ -19,7 +19,7 @@ class Links(BaseModel):
 
 class Districts(BaseModel):
     """Detailed district information for an address."""
-    sectors: str = Field(description="Sector identifier for the district.")
+    sectors: List[str] = Field(description="Sector identifier for the district.")
     location: str = Field(description="Descriptive name of the location or broader area.")
     region: str = Field(description="Geographical region (e.g., 'Islandwide').")
     id: int = Field(description="Unique identifier for the district.")
@@ -29,7 +29,7 @@ class Address(BaseModel):
     """Represents a physical address."""
     floor: Optional[str] = Field(default=None, description="Floor number of the address, if applicable.")
     postalCode: str = Field(description="Postal code of the address.")
-    districts: Districts = Field(description="Detailed district information.")
+    districts: List[Districts] = Field(description="Detailed district information.")
     isOverseas: bool = Field(description="Flag indicating if the address is located overseas.")
     foreignAddress2: Optional[str] = Field(default=None, description="Second line of foreign address, if applicable.")
     street: str = Field(description="Street name and number.")
@@ -132,25 +132,25 @@ class JobResult(BaseModel):
     uuid: str = Field(description="Unique identifier for this job result entry.")
     address: Address = Field(description="Physical location details of the job.")
     schemes: List[Any] = Field(default_factory=list, description="List of applicable government schemes or programs. Structure of items is undefined from sample.")
-    skills: Skill = Field(description="Primary skill associated with the job. Based on the sample, this is a single skill object.")
+    skills: List[Skill] = Field(description="Primary skill associated with the job. Based on the sample, this is a single skill object.")
     status: Status = Field(description="Current status of the job posting.")
     title: str = Field(description="Title of the job position.")
-    positionLevels: PositionLevel = Field(description="Details about the seniority and level of the position.")
+    positionLevels: List[PositionLevel] = Field(description="Details about the seniority and level of the position.")
     salary: Salary = Field(description="Salary information for the job.")
     metadata: Metadata = Field(description="Metadata associated with the job posting, like URLs and posting dates.")
     flexibleWorkArrangements: List[Any] = Field(default_factory=list, description="List of flexible work arrangements offered. Structure of items is undefined from sample.")
     score: float = Field(description="A relevance score assigned to this job result by the search algorithm.")
     postedCompany: PostedCompany = Field(description="Details of the company that posted the job listing.")
-    employmentTypes: JobEmploymentType = Field(description="Type of employment offered (e.g., full-time, contract).")
+    employmentTypes: List[JobEmploymentType] = Field(description="Type of employment offered (e.g., full-time, contract).")
     hiringCompany: Optional[Any] = Field(default=None, description="Details of the hiring company, if different from the posted company. Structure undefined from sample.")
     shiftPattern: Optional[Any] = Field(default=None, description="Details about the work shift pattern, if applicable. Structure undefined from sample.")
-    categories: Category = Field(description="Primary category the job falls under.")
+    categories: List[Category] = Field(description="Primary category the job falls under.")
 
 class JobSearchResponse(BaseModel):
     """Root model for the job search API response."""
     links: Links = Field(alias="_links", description="Navigation links for paginating through search results.")
     searchRankingId: str = Field(description="Identifier for the specific search ranking or session that produced these results.")
-    results: JobResult = Field(description="The job result data. Based on the provided 'job_schema.json', this field contains a single job result object. In a typical list API, this might be a list of JobResult objects.")
+    results: List[JobResult] = Field(description="The job result data. Based on the provided 'job_schema.json', this field contains a single job result object. In a typical list API, this might be a list of JobResult objects.")
     total: int = Field(description="Total number of job results matching the search criteria (potentially across all pages).")
     countWithoutFilters: int = Field(description="Total number of job results available before any search filters were applied.")
 
@@ -194,13 +194,13 @@ class SsecFos(BaseModel):
 
 class CommonData(BaseModel):
     """Container for common profile-related data."""
-    employmentTypes: EmploymentType = Field(description="Details about employment type.")
-    ssocList: Ssoc = Field(description="SSOC information.")
-    ssicList: Ssic = Field(description="SSIC information.")
-    countriesList: Country = Field(description="Country information.")
-    employmentStatusList: EmploymentStatus = Field(description="Employment status information.")
-    ssecEqaList: SsecEqa = Field(description="SSEC EQA information.")
-    ssecFosList: SsecFos = Field(description="SSEC FOS information.")
+    employmentTypes: List[EmploymentType] = Field(description="Details about employment type.")
+    ssocList: List[Ssoc] = Field(description="SSOC information.")
+    ssicList: List[Ssic] = Field(description="SSIC information.")
+    countriesList: List[Country] = Field(description="Country information.")
+    employmentStatusList: List[EmploymentStatus] = Field(description="Employment status information.")
+    ssecEqaList: List[SsecEqa] = Field(description="SSEC EQA information.")
+    ssecFosList: List[SsecFos] = Field(description="SSEC FOS information.")
 
 class Data(BaseModel):
     """Container for the main profile data."""
