@@ -1,0 +1,130 @@
+{
+    "uuid": "76d3310ae51348c561935cb2472f2883",
+    "sourceCode": "Employer Portal",
+    "title": "Restructuring & Insolvency Senior Manager / Associate Director",
+    "description": "<p><strong>The Restructuring and Insolvency team</strong></p>\n<p>Our restructuring and insolvency team works closely with industry professionals, companies and their stakeholders to identify and resolve issues affecting profitability, protect enterprise value and facilitate a full recovery where possible.</p>\n<p>The team is made up of young and friendly professionals bringing about an easy-going culture. While projects are often performed in a pressurised environment, the team works collaboratively and supportively across all levels to be able to deliver their best. The leaders in the team are hands-on, guiding and teaching junior members to navigate situations and stakeholders that may be difficult or tricky. Each individual has the space to grow in their own way and to discover what is best for them.</p>\n<p><strong>Responsibilities</strong></p>\n<ul>\n  <li>Leading the execution and delivery of day to day issues on restructuring and insolvency engagements</li>\n  <li>Building and sustaining strong relationships with stakeholders, creditors and other advisors</li>\n  <li>Strong transaction execution capabilities</li>\n  <li>Review and issue draft correspondence, reports and presentations</li>\n  <li>Reconstructing and review of (complex) accounting records from incomplete information</li>\n  <li>Experience in reviewing and overseeing investigation work for the benefit of recovering assets for the insolvent estate and company analysis, including financial modelling where necessary</li>\n  <li>Leading in client meetings and strategy discussions with directors and partners and making recommendations thereon</li>\n  <li>For insolvency matters, attending to statutory and compliance matters</li>\n  <li>Leading in business development and marketing activities</li>\n  <li>Coaching and building capabilities of team members</li>\n</ul>\n<p><strong>Qualifications and skills</strong></p>\n<ul>\n  <li>Bachelor\u2019s degree in Accounting, Business, Economics, Finance or other relevant field</li>\n  <li>Minimum 9 years previous experience in a restructuring and insolvency team for the Senior Manager / Associate Director position</li>\n  <li>Experience in working with the Big 4 or mid-tier professional services firms will have an added advantage</li>\n  <li>Experience in supervising the work of associates to managers</li>\n  <li>Able to lead and work in teams with excellent interpersonal skills</li>\n  <li>Possess a good understanding of business drivers and their fundamentals</li>\n  <li>Experience in entirely leading and managing multiple projects and engagements Proficient in the use of Microsoft Office Suite, and financial modelling an advantage</li>\n  <li>Excellent verbal and written communication skills</li>\n</ul>",
+    "minimumYearsExperience": 9,
+    "shiftPattern": null,
+    "schemes": [],
+    "skills": {
+        "uuid": "02836aefa858ae98a02998142b228ac9",
+        "confidence": null,
+        "skill": "Restructuring Insolvency Advisory"
+    },
+    "flexibleWorkArrangements": [],
+    "otherRequirements": null,
+    "ssocCode": "12199",
+    "occupationId": "OCC001483",
+    "ssocVersion": "2020v2",
+    "workingHours": null,
+    "numberOfVacancies": 1,
+    "psdUrl": null,
+    "categories": {
+        "id": 1,
+        "category": "Accounting / Auditing / Taxation"
+    },
+    "employmentTypes": {
+        "id": 8,
+        "employmentType": "Permanent"
+    },
+    "positionLevels": {
+        "id": 1,
+        "position": "Senior Management"
+    },
+    "status": {
+        "id": 102,
+        "jobStatus": "Open"
+    },
+    "ssecEqa": "70",
+    "ssecFos": "0521",
+    "postedCompany": {
+        "uen": "201417761Z",
+        "description": "<p>Grant Thornton is a global professional service network of more than 73,000 people in 150 markets. Our team in Singapore is growing rapidly and we know this success is made possible by our people. That\u2019s why we make sure our people have the right tools and environment to thrive.</p>\n<p>Each individual at Grant Thornton Singapore is empowered to be themselves within an inclusive team. Our supportive structure gives our people the autonomy to shape their careers and drive positive change in the firm. It\u2019s an exciting time to join us as we grow with organisations of all sizes and industries in Singapore, across the region and in the world.</p>\n<p>We are proud to be an equal opportunity firm where we celebrate what makes our employees unique. We are committed to nurturing our inclusive workplace and strongly encourage people from all backgrounds and walks of life to discover more about us.</p>",
+        "name": "GRANT THORNTON SINGAPORE PRIVATE LIMITED",
+        "ssicCode": "69201",
+        "employeeCount": null,
+        "companyUrl": "https://www.grantthornton.sg/careers/",
+        "lastSyncDate": "2025-05-19T01:38:54.000Z",
+        "ssicCode2020": "69201",
+        "badges": [],
+        "_links": {
+            "self": {
+                "href": "https://api.mycareersfuture.gov.sg/v2/companies/201417761Z"
+            },
+            "jobs": {
+                "href": "https://api.mycareersfuture.gov.sg/v2/companies/201417761Z/jobs"
+            },
+            "addresses": {
+                "href": "https://api.mycareersfuture.gov.sg/v2/companies/201417761Z/addresses"
+            },
+            "schemes": {
+                "href": "https://api.mycareersfuture.gov.sg/v2/companies/201417761Z/schemes"
+            }
+        },
+        "logoFileName": "22b490436fdaf10e2a63e31f3e388f21/grant-thornton-singapore.png",
+        "logoUploadPath": "https://static.mycareersfuture.gov.sg/images/company/logos/22b490436fdaf10e2a63e31f3e388f21/grant-thornton-singapore.png",
+        "responsiveEmployer": {
+            "isResponsive": true
+        }
+    },
+    "hiringCompany": null,
+    "screeningQuestions": [],
+    "address": {
+        "overseasCountry": null,
+        "foreignAddress1": null,
+        "foreignAddress2": null,
+        "block": "8",
+        "street": "MARINA VIEW",
+        "floor": null,
+        "unit": null,
+        "building": "ASIA SQUARE TOWER 1",
+        "postalCode": "018960",
+        "isOverseas": false,
+        "districts": {
+            "id": 1,
+            "location": "D01 Cecil, Marina, People\u2019s Park, Raffles Place",
+            "region": "Central",
+            "sectors": "01",
+            "regionId": "Central"
+        },
+        "lat": 1.27894102286368,
+        "lng": 103.851255908066
+    },
+    "metadata": {
+        "jobPostId": "MCF-2025-0719115",
+        "deletedAt": null,
+        "createdBy": "9169cde4-bf8e-4ba6-bdb8-c17d0d4ec71c",
+        "createdAt": "2025-05-19T08:02:16.000Z",
+        "updatedAt": "2025-05-19T08:02:16.000Z",
+        "emailRecipient": "9169cde4-bf8e-4ba6-bdb8-c17d0d4ec71c",
+        "editCount": 0,
+        "repostCount": 0,
+        "totalNumberOfView": 8,
+        "newPostingDate": "2025-05-19",
+        "originalPostingDate": "2025-05-19",
+        "expiryDate": "2025-06-18",
+        "totalNumberJobApplication": 1,
+        "isPostedOnBehalf": false,
+        "isHideSalary": false,
+        "isHideCompanyAddress": false,
+        "isHideHiringEmployerName": false,
+        "isHideEmployerName": false,
+        "jobDetailsUrl": "https://www.mycareersfuture.gov.sg/job/accounting/restructuring-insolvency-senior-manager-associate-director-grant-thornton-singapore-76d3310ae51348c561935cb2472f2883"
+    },
+    "salary": {
+        "maximum": 12000,
+        "minimum": 9000,
+        "type": {
+            "id": 4,
+            "salaryType": "Monthly"
+        }
+    },
+    "_links": {
+        "self": {
+            "href": "https://api.mycareersfuture.gov.sg/v2/jobs/76d3310ae51348c561935cb2472f2883"
+        },
+        "screeningQuestions": {
+            "href": "https://api.mycareersfuture.gov.sg/v2/jobs/76d3310ae51348c561935cb2472f2883/screening-questions"
+        }
+    }
+}
