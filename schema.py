@@ -28,15 +28,15 @@ class Districts(BaseModel):
 class Address(BaseModel):
     """Represents a physical address."""
     floor: Optional[str] = Field(default=None, description="Floor number of the address, if applicable.")
-    postalCode: str = Field(description="Postal code of the address.")
+    postalCode: Optional[str] = Field(default=None, description="Postal code of the address.")
     districts: List[Districts] = Field(description="Detailed district information.")
     isOverseas: bool = Field(description="Flag indicating if the address is located overseas.")
     foreignAddress2: Optional[str] = Field(default=None, description="Second line of foreign address, if applicable.")
-    street: str = Field(description="Street name and number.")
+    street: Optional[str] = Field(default=None, description="Street name and number.")
     overseasCountry: Optional[str] = Field(default=None, description="Country name, if the address is overseas.")
     block: Optional[str] = Field(default=None, description="Block number of the address. E.g., '391B'") # Sample had "391B", making it Optional for wider applicability
-    lat: float = Field(description="Latitude coordinate of the address.")
-    lng: float = Field(description="Longitude coordinate of the address.")
+    lat: Optional[float] = Field(default=None, description="Latitude coordinate of the address.")
+    lng: Optional[float] = Field(default=None, description="Longitude coordinate of the address.")
     unit: Optional[str] = Field(default=None, description="Unit number of the address, if applicable.")
     building: Optional[str] = Field(default=None, description="Name of the building. E.g., 'MARINA BAY FINANCIAL CENTRE'") # Sample had a value, making it Optional for wider applicability
     foreignAddress1: Optional[str] = Field(default=None, description="First line of foreign address, if applicable.")
@@ -103,6 +103,7 @@ class PostedCompanyLinks(BaseModel):
 
 class PostedCompany(BaseModel):
     """Details of the company that posted the job."""
+    # The '_links' field from the source JSON is intentionally ignored in this model.
     uen: str = Field(description="Unique Entity Number (UEN) of the company.")
     logoUploadPath: Optional[HttpUrl] = Field(default=None, description="Path or URL to the company's logo image.")
     responsiveEmployer: Optional[ResponsiveEmployer] = Field(default=None, description="Information about the employer's responsiveness.")
@@ -115,7 +116,6 @@ class PostedCompany(BaseModel):
     lastSyncDate: Optional[datetime] = Field(default=None, description="Timestamp of the last synchronization of company data.")
     ssicCode2020: Optional[str] = Field(default=None, description="SSIC code (2020 version) of the company.")
     badges: List[Any] = Field(default_factory=list, description="List of badges associated with the company.")
-    _links: Optional[PostedCompanyLinks] = Field(default=None, alias="_links", description="Navigation links related to the company.")
 
 class JobEmploymentType(BaseModel):
     """Describes the type of employment."""
@@ -139,7 +139,7 @@ class JobResult(BaseModel):
     salary: Salary = Field(description="Salary information for the job.")
     metadata: Metadata = Field(description="Metadata associated with the job posting, like URLs and posting dates.")
     flexibleWorkArrangements: List[Any] = Field(default_factory=list, description="List of flexible work arrangements offered. Structure of items is undefined from sample.")
-    score: float = Field(description="A relevance score assigned to this job result by the search algorithm.")
+    score: Optional[float] = Field(default=None, description="A relevance score assigned to this job result by the search algorithm.")
     postedCompany: PostedCompany = Field(description="Details of the company that posted the job listing.")
     employmentTypes: List[JobEmploymentType] = Field(description="Type of employment offered (e.g., full-time, contract).")
     hiringCompany: Optional[Any] = Field(default=None, description="Details of the hiring company, if different from the posted company. Structure undefined from sample.")
@@ -148,8 +148,8 @@ class JobResult(BaseModel):
 
 class JobSearchResponse(BaseModel):
     """Root model for the job search API response."""
-    links: Links = Field(alias="_links", description="Navigation links for paginating through search results.")
-    searchRankingId: str = Field(description="Identifier for the specific search ranking or session that produced these results.")
+    # The '_links' field from the source JSON is intentionally ignored in this model.
+    searchRankingId: Optional[str] = Field(default=None, description="Identifier for the specific search ranking or session that produced these results.")
     results: List[JobResult] = Field(description="The job result data. Based on the provided 'job_schema.json', this field contains a single job result object. In a typical list API, this might be a list of JobResult objects.")
     total: int = Field(description="Total number of job results matching the search criteria (potentially across all pages).")
     countWithoutFilters: int = Field(description="Total number of job results available before any search filters were applied.")
@@ -247,4 +247,4 @@ def main_cli():
         print(e)
 
 if __name__ == "__main__":
-    main_cli() 
+    main_cli()
