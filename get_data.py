@@ -136,10 +136,14 @@ def fetch_page(page: int, payload: Dict[str, Any], limit: int = 100, delay: int 
     
     try:
         response = requests.post(url, headers=headers, json=payload)
-        # Try to parse as JSON to validate
-        data = response.json()
-        # print(data) # Commenting out to reduce noise during multiple page fetches
-        return data
+        if response.status_code == 200:
+            # Try to parse as JSON to validate
+            data = response.json()
+            # print(data) # Commenting out to reduce noise during multiple page fetches
+            return data
+        else:
+            print(f"Warning: Received status code {response.status_code} for page {page}. Response: {response.text[:200]}...")
+            return None
     except json.JSONDecodeError:
         # If not valid JSON, return None
         print(f"Warning: Could not decode JSON from page {page}. Response: {response.text[:200]}...") # Log part of the response
@@ -173,7 +177,8 @@ def _fetch_and_save_category_data(
             try:
                 # Extract page number from filename: yyyymmdd_category_PAGENUMBER.json
                 page_num_str = os.path.basename(f_path).split('_')[-1].replace('.json', '')
-                page_num = int(page_num_str)
+                # Accommodate new zero-padded format when parsing existing files
+                page_num = int(page_num_str) 
                 if page_num > max_page_found:
                     max_page_found = page_num
             except (ValueError, IndexError) as e:
@@ -211,10 +216,11 @@ def _fetch_and_save_category_data(
         
         if data is None:
             print(f"No data returned or error on page {page} for category '{job_category.url_param_name}'. Stopping this category.")
-            break
+            break # Exit loop for this category if fetch failed
             
+        # Only proceed if data is valid
         # Define file path for the current page's data
-        file_name = f"{date_str}_{job_category.url_param_name}_{page}.json"
+        file_name = f"{date_str}_{job_category.url_param_name}_{page:04d}.json" # Format page number
         file_path = os.path.join(target_dir_for_date, file_name)
 
         # Save the current page's data
@@ -224,7 +230,6 @@ def _fetch_and_save_category_data(
             print(f"Saved page {page} data for '{job_category.url_param_name}' to {file_path}")
         except Exception as e:
             print(f"Error saving data for page {page}, category '{job_category.url_param_name}' to {file_path}: {e}")
-            # Decide if we should break or continue if a save fails; for now, break.
             break 
             
         num_results_on_page = 0

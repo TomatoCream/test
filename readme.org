@@ -172,3 +172,21 @@ social-services
 telecommunications
 travel
 wholesale-trade
+
+
+curl 'https://api.mycareersfuture.gov.sg/v2/jobs/76d3310ae51348c561935cb2472f2883?updateApplicationCount=true' \
+  -H 'accept: */*' \
+  -H 'accept-language: en-GB,en;q=0.6' \
+  -H 'if-none-match: W/"20d2-bOCKJKGI0q8wspeeS9ZFSiU+UQI"' \
+  -H 'mcf-client: jobseeker' \
+  -H 'origin: https://www.mycareersfuture.gov.sg' \
+  -H 'priority: u=1, i' \
+  -H 'referer: https://www.mycareersfuture.gov.sg/' \
+  -H 'sec-ch-ua: "Brave";v="135", "Not-A.Brand";v="8", "Chromium";v="135"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'sec-ch-ua-platform: "Linux"' \
+  -H 'sec-fetch-dest: empty' \
+  -H 'sec-fetch-mode: cors' \
+  -H 'sec-fetch-site: same-site' \
+  -H 'sec-gpc: 1' \
+  -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
