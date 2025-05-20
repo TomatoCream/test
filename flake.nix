@@ -21,6 +21,7 @@
           with p; [
             venvShellHook
 
+            jupyterlab
             pydantic
             requests
           ])
