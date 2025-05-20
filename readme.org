@@ -128,7 +128,6 @@ curl 'https://api.mycareersfuture.gov.sg/v2/search?limit=20&page=0' \
 | wholesale-trade        | "Wholesale Trade"                   |
 
 
-
 admin
 accounting
 advertising
