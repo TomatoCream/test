@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, HttpUrl, field_validator
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Union
 from datetime import date, datetime
 import argparse
 import json
@@ -45,10 +45,11 @@ class Skill(BaseModel):
     """Represents a skill required or associated with a job."""
     uuid: str = Field(description="Unique identifier for the skill.")
     skill: str = Field(description="Name of the skill (e.g., 'Oral & Written Communication Skills').")
+    confidence: Optional[Any] = Field(default=None, description="Confidence score for the skill, if available.")
 
 class Status(BaseModel):
     """Represents the current status of a job posting."""
-    id: str = Field(description="Identifier for the job status (e.g., '102').")
+    id: Union[str, int] = Field(description="Identifier for the job status (e.g., '102' or 102).")
     jobStatus: str = Field(description="Descriptive status of the job posting (e.g., 'Re-open').")
 
 class PositionLevel(BaseModel):
@@ -58,6 +59,7 @@ class PositionLevel(BaseModel):
 
 class SalaryType(BaseModel):
     """Specifies the type or frequency of salary payment."""
+    id: Optional[int] = Field(default=None, description="Identifier for the salary type, if available.")
     salaryType: str = Field(description="Type of salary payment (e.g., 'Monthly').")
 
 class Salary(BaseModel):
@@ -76,10 +78,28 @@ class Metadata(BaseModel):
     isHideSalary: bool = Field(description="Flag indicating if the salary information is hidden from applicants.")
     newPostingDate: date = Field(description="Date when the job was newly posted or most recently reposted.")
     updatedAt: datetime = Field(description="Timestamp of the last update to the job posting information.")
+    deletedAt: Optional[datetime] = Field(default=None, description="Timestamp when the job post was soft deleted.")
+    createdBy: Optional[str] = Field(default=None, description="Identifier of the user/system that created the job post.")
+    createdAt: Optional[datetime] = Field(default=None, description="Timestamp of when the job post was created.")
+    emailRecipient: Optional[str] = Field(default=None, description="Identifier of the email recipient related to the job post.")
+    editCount: Optional[int] = Field(default=None, description="Number of times the job post has been edited.")
+    repostCount: Optional[int] = Field(default=None, description="Number of times the job post has been reposted.")
+    totalNumberOfView: Optional[int] = Field(default=None, description="Total number of views for the job post.")
+    originalPostingDate: Optional[date] = Field(default=None, description="The very first date the job was posted.")
+    expiryDate: Optional[date] = Field(default=None, description="Date when the job posting will expire.")
+    isHideCompanyAddress: Optional[bool] = Field(default=None, description="Flag indicating if the company address is hidden from applicants.")
+    isHideEmployerName: Optional[bool] = Field(default=None, description="Flag indicating if the employer's name (distinct from hiring employer) is hidden.")
 
 class ResponsiveEmployer(BaseModel):
     """Indicates whether an employer is considered responsive."""
     isResponsive: bool = Field(description="Flag indicating if the employer is responsive to applications.")
+
+class PostedCompanyLinks(BaseModel):
+    """Navigation links related to a posted company."""
+    self: Link = Field(description="Link to the company's own details.")
+    jobs: Link = Field(description="Link to the jobs posted by this company.")
+    addresses: Link = Field(description="Link to the company's addresses.")
+    schemes: Link = Field(description="Link to schemes related to this company.")
 
 class PostedCompany(BaseModel):
     """Details of the company that posted the job."""
@@ -88,8 +108,16 @@ class PostedCompany(BaseModel):
     responsiveEmployer: Optional[ResponsiveEmployer] = Field(default=None, description="Information about the employer's responsiveness.")
     logoFileName: Optional[str] = Field(default=None, description="Filename of the company's logo.")
     name: str = Field(description="Name of the company that posted the job.")
+    description: Optional[str] = Field(default=None, description="Description of the company, may contain HTML.")
+    ssicCode: Optional[str] = Field(default=None, description="SSIC (Singapore Standard Industrial Classification) code of the company.")
+    employeeCount: Optional[int] = Field(default=None, description="Number of employees in the company.")
+    companyUrl: Optional[HttpUrl] = Field(default=None, description="URL to the company's website.")
+    lastSyncDate: Optional[datetime] = Field(default=None, description="Timestamp of the last synchronization of company data.")
+    ssicCode2020: Optional[str] = Field(default=None, description="SSIC code (2020 version) of the company.")
+    badges: List[Any] = Field(default_factory=list, description="List of badges associated with the company.")
+    _links: Optional[PostedCompanyLinks] = Field(default=None, alias="_links", description="Navigation links related to the company.")
 
-class EmploymentType(BaseModel):
+class JobEmploymentType(BaseModel):
     """Describes the type of employment."""
     id: int = Field(description="Identifier for the employment type.")
     employmentType: str = Field(description="Nature of the employment (e.g., 'Internship/Attachment', 'Full-time').")
@@ -113,7 +141,7 @@ class JobResult(BaseModel):
     flexibleWorkArrangements: List[Any] = Field(default_factory=list, description="List of flexible work arrangements offered. Structure of items is undefined from sample.")
     score: float = Field(description="A relevance score assigned to this job result by the search algorithm.")
     postedCompany: PostedCompany = Field(description="Details of the company that posted the job listing.")
-    employmentTypes: EmploymentType = Field(description="Type of employment offered (e.g., full-time, contract).")
+    employmentTypes: JobEmploymentType = Field(description="Type of employment offered (e.g., full-time, contract).")
     hiringCompany: Optional[Any] = Field(default=None, description="Details of the hiring company, if different from the posted company. Structure undefined from sample.")
     shiftPattern: Optional[Any] = Field(default=None, description="Details about the work shift pattern, if applicable. Structure undefined from sample.")
     categories: Category = Field(description="Primary category the job falls under.")
@@ -128,59 +156,59 @@ class JobSearchResponse(BaseModel):
 
 # Pydantic Model Definitions for Profile Data
 
-class ProfileEmploymentType(BaseModel):
+class EmploymentType(BaseModel):
     """Represents the employment type in a user profile."""
     id: str = Field(description="Identifier for the employment type.")
     name: str = Field(description="Name of the employment type (e.g., 'Flexi Time').")
 
-class ProfileSsoc(BaseModel):
+class Ssoc(BaseModel):
     """Represents an SSOC (Singapore Standard Occupational Classification) entry."""
     ssoc: str = Field(description="SSOC code.")
     ssocTitle: str = Field(description="Title or description of the SSOC code.")
 
-class ProfileSsic(BaseModel):
+class Ssic(BaseModel):
     """Represents an SSIC (Singapore Standard Industrial Classification) entry."""
     code: str = Field(description="SSIC code.")
     description: str = Field(description="Description of the SSIC code.")
 
-class ProfileCountry(BaseModel):
+class Country(BaseModel):
     """Represents a country entry."""
     codeNumber: str = Field(description="Numeric code for the country.")
     code: str = Field(description="Alpha code for the country (e.g., 'AF').")
     description: str = Field(description="Name of the country.")
 
-class ProfileEmploymentStatus(BaseModel):
+class EmploymentStatus(BaseModel):
     """Represents the employment status in a user profile."""
     id: str = Field(description="Identifier for the employment status.")
     description: str = Field(description="Description of the employment status (e.g., 'Self-employed').")
 
-class ProfileSsecEqa(BaseModel):
+class SsecEqa(BaseModel):
     """Represents an SSEC EQA (Educational Qualification Attainment) entry."""
     code: str = Field(description="SSEC EQA code.")
     description: str = Field(description="Description of the SSEC EQA.")
 
-class ProfileSsecFos(BaseModel):
+class SsecFos(BaseModel):
     """Represents an SSEC FOS (Field of Study) entry."""
     code: str = Field(description="SSEC FOS code.")
     description: str = Field(description="Description of the SSEC FOS.")
 
-class ProfileCommonData(BaseModel):
+class CommonData(BaseModel):
     """Container for common profile-related data."""
-    employmentTypes: ProfileEmploymentType = Field(description="Details about employment type.")
-    ssocList: ProfileSsoc = Field(description="SSOC information.")
-    ssicList: ProfileSsic = Field(description="SSIC information.")
-    countriesList: ProfileCountry = Field(description="Country information.")
-    employmentStatusList: ProfileEmploymentStatus = Field(description="Employment status information.")
-    ssecEqaList: ProfileSsecEqa = Field(description="SSEC EQA information.")
-    ssecFosList: ProfileSsecFos = Field(description="SSEC FOS information.")
+    employmentTypes: EmploymentType = Field(description="Details about employment type.")
+    ssocList: Ssoc = Field(description="SSOC information.")
+    ssicList: Ssic = Field(description="SSIC information.")
+    countriesList: Country = Field(description="Country information.")
+    employmentStatusList: EmploymentStatus = Field(description="Employment status information.")
+    ssecEqaList: SsecEqa = Field(description="SSEC EQA information.")
+    ssecFosList: SsecFos = Field(description="SSEC FOS information.")
 
-class ProfileData(BaseModel):
+class Data(BaseModel):
     """Container for the main profile data."""
-    common: ProfileCommonData = Field(description="Common profile data.")
+    common: CommonData = Field(description="Common profile data.")
 
-class ProfileResponse(BaseModel):
+class Response(BaseModel):
     """Root model for the profile API response."""
-    data: ProfileData = Field(description="The profile data.")
+    data: Data = Field(description="The profile data.")
 
 # Command-Line Interface (CLI) for testing
 
