@@ -6,11 +6,13 @@
     "minimumYearsExperience": 9,
     "shiftPattern": null,
     "schemes": [],
-    "skills": {
-        "uuid": "02836aefa858ae98a02998142b228ac9",
-        "confidence": null,
-        "skill": "Restructuring Insolvency Advisory"
-    },
+    "skills": [
+        {
+            "uuid": "02836aefa858ae98a02998142b228ac9",
+            "confidence": null,
+            "skill": "Restructuring Insolvency Advisory"
+        }
+    ],
     "flexibleWorkArrangements": [],
     "otherRequirements": null,
     "ssocCode": "12199",
@@ -19,18 +21,24 @@
     "workingHours": null,
     "numberOfVacancies": 1,
     "psdUrl": null,
-    "categories": {
-        "id": 1,
-        "category": "Accounting / Auditing / Taxation"
-    },
-    "employmentTypes": {
-        "id": 8,
-        "employmentType": "Permanent"
-    },
-    "positionLevels": {
-        "id": 1,
-        "position": "Senior Management"
-    },
+    "categories": [
+        {
+            "id": 1,
+            "category": "Accounting / Auditing / Taxation"
+        }
+    ],
+    "employmentTypes": [
+        {
+            "id": 8,
+            "employmentType": "Permanent"
+        }
+    ],
+    "positionLevels": [
+        {
+            "id": 1,
+            "position": "Senior Management"
+        }
+    ],
     "status": {
         "id": 102,
         "jobStatus": "Open"
@@ -80,13 +88,17 @@
         "building": "ASIA SQUARE TOWER 1",
         "postalCode": "018960",
         "isOverseas": false,
-        "districts": {
-            "id": 1,
-            "location": "D01 Cecil, Marina, People\u2019s Park, Raffles Place",
-            "region": "Central",
-            "sectors": "01",
-            "regionId": "Central"
-        },
+        "districts": [
+            {
+                "id": 1,
+                "location": "D01 Cecil, Marina, People\u2019s Park, Raffles Place",
+                "region": "Central",
+                "sectors": [
+                    "01"
+                ],
+                "regionId": "Central"
+            }
+        ],
         "lat": 1.27894102286368,
         "lng": 103.851255908066
     },

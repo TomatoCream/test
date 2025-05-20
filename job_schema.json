@@ -13,83 +13,123 @@
             "href": "https://api.mycareersfuture.gov.sg/v2/search?limit=100&page=99"
         }
     },
-    "searchRankingId": "b614a760-903b-4d06-ab0a-cd57ddc5dcdb-1747599429.7029264",
-    "results": {
-        "uuid": "b90fdf43c5b5f38eeb4de5a9b60c019f",
-        "address": {
-            "floor": null,
-            "postalCode": "048583",
-            "districts": {
-                "sectors": "01",
-                "location": "D05 Clementi New Town, Hong Leong Garden, Pasir Panjang",
-                "region": "Islandwide",
-                "id": 998,
-                "regionId": "Islandwide"
+    "searchRankingId": "09d41704-31e2-4f09-878d-924ab289d3f5-1747602243.394722",
+    "results": [
+        {
+            "hiringCompany": {
+                "ssicCode": "46521",
+                "lastSyncDate": "2025-05-16T01:33:50.000Z",
+                "employeeCount": null,
+                "uen": "200717119C",
+                "logoUploadPath": "https://static.mycareersfuture.gov.sg/images/company/logos/5c4bf7ab86b175964a3a350680395c6c/bti-executive-search.png",
+                "badges": {
+                    "badgeType": "Tripartite",
+                    "badgeCode": "002",
+                    "badgeName": "Tripartite Standard on Flexible Work Arrangements",
+                    "description": "Implementing FWAs successfully through training and senior management support.",
+                    "url": "https://www.tafep.sg/flexible-work-arrangements",
+                    "source": "Tafep",
+                    "startDate": "2025-05-18",
+                    "expiryDate": "2026-05-18"
+                },
+                "logoFileName": "5c4bf7ab86b175964a3a350680395c6c/bti-executive-search.png",
+                "companyUrl": "https://keximglobal.com.sg/",
+                "name": "FUJIFILM BUSINESS INNOVATION SINGAPORE PTE. LTD.",
+                "_links": {
+                    "schemes": {
+                        "href": "https://api.mycareersfuture.gov.sg/v2/companies/200717119C/schemes"
+                    },
+                    "addresses": {
+                        "href": "https://api.mycareersfuture.gov.sg/v2/companies/200717119C/addresses"
+                    },
+                    "jobs": {
+                        "href": "https://api.mycareersfuture.gov.sg/v2/companies/200717119C/jobs"
+                    },
+                    "self": {
+                        "href": "https://api.mycareersfuture.gov.sg/v2/companies/200717119C"
+                    }
+                },
+                "ssicCode2020": "46521",
+                "description": "<p>At Huawei, we define human progress by innovations that enrich humanity. We do not view connectivity as a privilege, but a necessity. We believe that the impact of information and communications technology should be measured by how many people can benefit from it.<br />  <br />  Huawei is a leading global ICT solutions provider. Through our dedication to customer-centric innovation and strong partnerships, we have established end-to-end capabilities and strengths across the carrier networks, enterprise, consumer, and cloud computing fields. Our products and solutions have been deployed in over 170 countries, serving more than one third of the world's population.<br />  <br />  Huawei's vision is to enrich life through communication. By leveraging our experience and expertise in the ICT sector, we help bridge the digital divide by providing opportunities to enjoy broadband services, regardless of geographic location. Contributing to the sustainable development of society, the economy, and the environment, Huawei creates green solutions that enable customers to reduce power consumption, carbon emissions, and resource costs.<br />  <br />  Please visit our website www.huawei.com for more information</p>  "
             },
-            "isOverseas": false,
-            "foreignAddress2": null,
-            "street": "LORONG 23 GEYLANG",
-            "overseasCountry": null,
-            "block": "391B",
-            "lat": 1.3495673698115,
-            "lng": 103.881336904053,
-            "unit": null,
-            "building": "MARINA BAY FINANCIAL CENTRE",
-            "foreignAddress1": null
-        },
-        "schemes": [],
-        "skills": {
-            "uuid": "023157b1a3d9ee4f0ed14b9801a26ac4",
-            "skill": "Oral & Written Communication Skills"
-        },
-        "status": {
-            "id": "102",
-            "jobStatus": "Re-open"
-        },
-        "title": "Senior Manager / Associate Director, Project - Business Optimization (1 Year Contract)",
-        "positionLevels": {
-            "position": "Senior Management",
-            "id": 12
-        },
-        "salary": {
-            "maximum": 45000,
-            "minimum": 40000,
-            "type": {
-                "salaryType": "Monthly"
-            }
-        },
-        "metadata": {
-            "jobDetailsUrl": "https://www.mycareersfuture.gov.sg/job/building-construction/workplace-safety-health-officer-construction-engineering-projects-good-job-creations-c4a21c065030995d79b714e5c76fe9c4",
-            "isPostedOnBehalf": false,
-            "isHideHiringEmployerName": false,
-            "jobPostId": "MCF-2025-0714896",
-            "totalNumberJobApplication": 0,
-            "isHideSalary": false,
-            "newPostingDate": "2025-05-18",
-            "updatedAt": "2025-05-18T15:37:25"
-        },
-        "flexibleWorkArrangements": [],
-        "score": 0.2504977941195275,
-        "postedCompany": {
-            "uen": "202311633M",
-            "logoUploadPath": "https://static.mycareersfuture.gov.sg/images/company/logos/a7428c521d6204b09d3a66c85822933d/wallem-shipmanagement-singapore.jpg",
-            "responsiveEmployer": {
-                "isResponsive": true
+            "skills": {
+                "uuid": "016e5686a3e19a16d84129542aa14646",
+                "skill": "Research and Development"
             },
-            "logoFileName": "a7428c521d6204b09d3a66c85822933d/wallem-shipmanagement-singapore.jpg",
-            "name": "STANDARD CHARTERED BANK (SINGAPORE) LIMITED"
-        },
-        "employmentTypes": {
-            "id": 10,
-            "employmentType": "Internship/Attachment"
-        },
-        "hiringCompany": null,
-        "shiftPattern": null,
-        "categories": {
-            "id": 41,
-            "category": "Real Estate / Property Management"
+            "employmentTypes": {
+                "id": 8,
+                "employmentType": "Permanent"
+            },
+            "address": {
+                "unit": null,
+                "foreignAddress2": null,
+                "overseasCountry": null,
+                "street": "PASIR PANJANG ROAD",
+                "lng": 103.8521274842,
+                "lat": 1.29975987849417,
+                "isOverseas": false,
+                "foreignAddress1": null,
+                "postalCode": "048623",
+                "districts": {
+                    "id": 998,
+                    "sectors": "01",
+                    "regionId": "Islandwide",
+                    "location": "D01 Cecil, Marina, People\u2019s Park, Raffles Place",
+                    "region": "Islandwide"
+                },
+                "block": "50",
+                "floor": null,
+                "building": "ONE-NORTH MRT STATION (CC23)"
+            },
+            "salary": {
+                "minimum": 20000,
+                "type": {
+                    "salaryType": "Monthly"
+                },
+                "maximum": 23000
+            },
+            "positionLevels": {
+                "id": 7,
+                "position": "Professional"
+            },
+            "uuid": "9852ecac7e03895896587517c54f0736",
+            "status": {
+                "jobStatus": "Re-open",
+                "id": "102"
+            },
+            "schemes": [],
+            "postedCompany": {
+                "name": "APICARE PAIN SPECIALIST PTE. LTD.",
+                "uen": "200007268E",
+                "logoUploadPath": "https://static.mycareersfuture.gov.sg/images/company/logos/4a663fed1ca6badeafbd191395681e47/persolkelly-singapore.jpg",
+                "responsiveEmployer": {
+                    "isResponsive": true
+                },
+                "logoFileName": "4a663fed1ca6badeafbd191395681e47/persolkelly-singapore.jpg"
+            },
+            "metadata": {
+                "jobPostId": "MCF-2025-0708713",
+                "isPostedOnBehalf": true,
+                "newPostingDate": "2025-05-16",
+                "totalNumberJobApplication": 0,
+                "updatedAt": "2025-05-16T08:33:52",
+                "isHideHiringEmployerName": false,
+                "jobDetailsUrl": "https://www.mycareersfuture.gov.sg/job/information-technology/data-center-operator-12-hrs-shift-including-weekend-ph-code-kas-persolkelly-singapore-c2ac0215314a2a61dfec5af3342c579e",
+                "isHideSalary": false
+            },
+            "flexibleWorkArrangements": {
+                "id": 6,
+                "flexibleWorkArrangement": "Creative Scheduling"
+            },
+            "shiftPattern": null,
+            "score": 0.045252929562234895,
+            "categories": {
+                "id": 21,
+                "category": "Information Technology"
+            },
+            "title": "IT Data Center Operator (12 months Agency Contract) 12 hrs shift including weekend & PH, Code : KAS"
         }
-    },
+    ],
     "total": 10000,
-    "countWithoutFilters": 71236
+    "countWithoutFilters": 71245
 }
