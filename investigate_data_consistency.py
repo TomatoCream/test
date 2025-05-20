@@ -11,13 +11,13 @@ from schema import (
 
 # Global maps to store the first encountered instance of each item type
 metadata_map: Dict[str, Metadata] = {}
-districts_map: Dict[Any, Districts] = {}  # Key can be int or str based on schema
+districts_map: Dict[int, Districts] = {}  # Key can be int or str based on schema
 position_levels_map: Dict[int, PositionLevel] = {}
 posted_company_map: Dict[str, PostedCompany] = {}
 skills_map: Dict[str, Skill] = {}
-employment_types_map: Dict[Any, JobEmploymentType] = {} # Key can be int or str
+employment_types_map: Dict[int, JobEmploymentType] = {} # Key can be int or str
 categories_map: Dict[int, Category] = {}
-status_map: Dict[Any, Status] = {} # Key can be Union[str, int]
+status_map: Dict[int, Status] = {} # Key can be Union[str, int]
 
 def process_item(item: Any, item_map: Dict[Any, Any], item_key_value: Any, item_name: str):
     """
@@ -28,9 +28,13 @@ def process_item(item: Any, item_map: Dict[Any, Any], item_key_value: Any, item_
         existing_item = item_map[item_key_value]
         if item != existing_item:
             print(f"Difference found for {item_name} with key '{item_key_value}'.")
-            # To see the actual differences, you could add:
-            # print(f"  Existing: {existing_item.model_dump(mode='json')}")
-            # print(f"  New:      {item.model_dump(mode='json')}")
+            existing_item_dict = existing_item.model_dump()
+            new_item_dict = item.model_dump()
+            for key in existing_item_dict.keys():
+                if existing_item_dict.get(key) != new_item_dict.get(key):
+                    print(f"  Mismatch in '{key}':")
+                    print(f"    Existing: {existing_item_dict.get(key)}")
+                    print(f"    New:      {new_item_dict.get(key)}")
     else:
         item_map[item_key_value] = item
 
@@ -132,4 +136,4 @@ def main():
     print(f"Total unique Status entries stored: {len(status_map)}")
 
 if __name__ == "__main__":
-    main() 
+    main()
