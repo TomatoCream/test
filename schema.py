@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Any, Union
 from datetime import date, datetime
 import argparse
@@ -8,7 +8,7 @@ import json
 
 class Link(BaseModel):
     """Represents a hyperlink, typically for navigation."""
-    href: HttpUrl = Field(description="URL for the link.")
+    href: str = Field(description="URL for the link.")
 
 class Links(BaseModel):
     """Container for navigation links, commonly used in paginated API responses."""
@@ -70,7 +70,7 @@ class Salary(BaseModel):
 
 class Metadata(BaseModel):
     """Contains metadata related to a job posting."""
-    jobDetailsUrl: HttpUrl = Field(description="URL to the full job details page on the job portal.")
+    jobDetailsUrl: str = Field(description="URL to the full job details page on the job portal.")
     isPostedOnBehalf: bool = Field(description="Flag indicating if the job is posted on behalf of another company.")
     isHideHiringEmployerName: bool = Field(description="Flag indicating if the hiring employer's name is hidden from applicants.")
     jobPostId: str = Field(description="Unique identifier for the job post (e.g., 'MCF-2025-0714896').")
@@ -105,14 +105,14 @@ class PostedCompany(BaseModel):
     """Details of the company that posted the job."""
     # The '_links' field from the source JSON is intentionally ignored in this model.
     uen: str = Field(description="Unique Entity Number (UEN) of the company.")
-    logoUploadPath: Optional[HttpUrl] = Field(default=None, description="Path or URL to the company's logo image.")
+    logoUploadPath: Optional[str] = Field(default=None, description="Path or URL to the company's logo image.")
     responsiveEmployer: Optional[ResponsiveEmployer] = Field(default=None, description="Information about the employer's responsiveness.")
     logoFileName: Optional[str] = Field(default=None, description="Filename of the company's logo.")
     name: str = Field(description="Name of the company that posted the job.")
     description: Optional[str] = Field(default=None, description="Description of the company, may contain HTML.")
     ssicCode: Optional[str] = Field(default=None, description="SSIC (Singapore Standard Industrial Classification) code of the company.")
     employeeCount: Optional[int] = Field(default=None, description="Number of employees in the company.")
-    companyUrl: Optional[HttpUrl] = Field(default=None, description="URL to the company's website.")
+    companyUrl: Optional[str] = Field(default=None, description="URL to the company's website.")
     lastSyncDate: Optional[datetime] = Field(default=None, description="Timestamp of the last synchronization of company data.")
     ssicCode2020: Optional[str] = Field(default=None, description="SSIC code (2020 version) of the company.")
     badges: List[Any] = Field(default_factory=list, description="List of badges associated with the company.")
@@ -213,8 +213,6 @@ class Response(BaseModel):
 # Custom JSON Encoder for Pydantic Types
 class CustomEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, HttpUrl):
-            return str(obj)
         if isinstance(obj, (datetime, date)):
             return obj.isoformat()
         if isinstance(obj, BaseModel):

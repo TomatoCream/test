@@ -21,9 +21,12 @@
           with p; [
             venvShellHook
 
-            # jupyterlab
+            jupyterlab
             pydantic
             requests
+            pyarrow
+
+            pandas
           ])
         myPython.pkgs;
       in {
