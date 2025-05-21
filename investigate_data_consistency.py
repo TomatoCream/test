@@ -6,7 +6,7 @@ from typing import Any, Dict
 # Assuming schema.py is in the same directory or accessible via PYTHONPATH
 from schema import (
     JobSearchResponse, Metadata, Districts, PositionLevel,
-    PostedCompany, Skill, JobEmploymentType, Category, Status
+    PostedCompany, Skill, JobEmploymentType, Category, Status, CustomEncoder
 )
 
 # Global maps to store the first encountered instance of each item type
@@ -52,6 +52,11 @@ def main():
         type=str,
         default="raw_data",
         help="Root directory containing dated subdirectories of JSON files. Default: 'raw_data'."
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        help="Optional path to save the aggregated data maps as a JSON file."
     )
     args = parser.parse_args()
 
@@ -123,6 +128,33 @@ def main():
     
     if file_count == 0:
         print(f"No JSON files found in {data_path}.")
+
+    if args.output:
+        print(f"\\nSaving data maps to: {args.output}")
+        # Prepare data for JSON output
+        # Convert Pydantic models to dicts using .model_dump()
+        # Sort skills by skill name
+        sorted_skill_objects = sorted(skills_map.values(), key=lambda s: s.skill if s.skill else "")
+        
+        all_data_maps = {
+            "metadata": {k: v.model_dump() for k, v in metadata_map.items()},
+            "districts": {str(k): v.model_dump() for k, v in districts_map.items()},
+            "position_levels": {str(k): v.model_dump() for k, v in position_levels_map.items()},
+            "posted_companies": {k: v.model_dump() for k, v in posted_company_map.items()},
+            "skills": [s.model_dump() for s in sorted_skill_objects],
+            "employment_types": {str(k): v.model_dump() for k, v in employment_types_map.items()},
+            "categories": {str(k): v.model_dump() for k, v in categories_map.items()},
+            "statuses": {str(k): v.model_dump() for k, v in status_map.items()}
+        }
+        
+        try:
+            output_path = Path(args.output)
+            output_path.parent.mkdir(parents=True, exist_ok=True) # Ensure parent directory exists
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(all_data_maps, f, cls=CustomEncoder, indent=4, ensure_ascii=False)
+            print(f"Successfully saved data to {args.output}")
+        except Exception as e:
+            print(f"Error saving data to '{args.output}': {e}")
 
     print("\n--- Investigation Complete ---")
     print(f"Processed {file_count} JSON file(s).")

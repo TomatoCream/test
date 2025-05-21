@@ -210,6 +210,17 @@ class Response(BaseModel):
     """Root model for the profile API response."""
     data: Data = Field(description="The profile data.")
 
+# Custom JSON Encoder for Pydantic Types
+class CustomEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, HttpUrl):
+            return str(obj)
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        if isinstance(obj, BaseModel):
+            return obj.model_dump(mode='json')
+        return super().default(obj)
+
 # Command-Line Interface (CLI) for testing
 
 def main_cli():
@@ -232,10 +243,9 @@ def main_cli():
         # Validate and parse the JSON data
         job_response = JobSearchResponse.model_validate_json(json_data_str)
         
-        # Print the parsed Pydantic model
-        # The default Pydantic __repr__ is quite informative.
-        # For a more custom/pretty print, you might use job_response.model_dump_json(indent=2)
-        print(job_response)
+        # Print the parsed Pydantic model as a JSON string using CustomEncoder
+        job_response_json_str = job_response.model_dump_json(indent=2)
+        print(job_response_json_str)
 
     except FileNotFoundError:
         print(f"Error: The file '{args.json_file}' was not found.")
