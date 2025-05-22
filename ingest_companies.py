@@ -16,9 +16,14 @@ def main():
         description="Investigate JSON data from MyCareersFuture job postings for consistency and reusability."
     )
     parser.add_argument(
-        "date",
+        "previous_date",
         type=str,
-        help="Date in YYYYMMDD format, corresponding to the subdirectory in the raw_data_root or for naming Parquet files."
+        help="Date in YYYYMMDD format, for loading existing Parquet data."
+    )
+    parser.add_argument(
+        "next_date",
+        type=str,
+        help="Date in YYYYMMDD format, for processing new JSON files and naming the output Parquet file."
     )
     parser.add_argument(
         "--directory",
@@ -29,8 +34,8 @@ def main():
     parser.add_argument(
         "--database_directory",
         type=str,
-        default="parquet_data",
-        help="Directory to load existing Parquet files from and save new ones to. Default: 'parquet_data'."
+        default="db_data",
+        help="Directory to load existing Parquet files from and save new ones to. Default: 'db_data'."
     )
     parser.add_argument(
         "--version",
@@ -40,12 +45,12 @@ def main():
     )
     args = parser.parse_args()
 
-    data_path = Path(args.directory) / args.date
+    data_path = Path(args.directory) / args.next_date
     db_dir = Path(args.database_directory)
-    posted_company_parquet_file = db_dir / f"{args.date}-posted_companies.parquet"
+    posted_company_parquet_file = db_dir / args.previous_date / "posted_companies.parquet"
     
     # Convert date string to standard format for storage
-    crawl_date = args.date
+    crawl_date = args.next_date
     version = args.version
 
     # Initialize posted_company_df
@@ -55,6 +60,9 @@ def main():
         company_columns.append('crawl_date')
     if 'version' not in company_columns:
         company_columns.append('version')
+
+    error_count = 0
+    diff_companies_summary = []
     
     try:
         print(f"Attempting to load existing data from {posted_company_parquet_file}")
@@ -64,7 +72,7 @@ def main():
         for col in ['uen', 'crawl_date', 'version']:
             if col not in posted_company_df.columns:
                 if col == 'crawl_date':
-                    posted_company_df[col] = crawl_date
+                    posted_company_df[col] = args.previous_date
                 elif col == 'version':
                     posted_company_df[col] = version
                 else:
@@ -75,6 +83,7 @@ def main():
         # Set up multi-index
         if not posted_company_df.empty:
             posted_company_df = posted_company_df.set_index(['uen', 'crawl_date', 'version'])
+            posted_company_df = posted_company_df.sort_index() # Ensure index is sorted for performance
         
         # Ensure all model columns exist, add if missing (e.g. schema evolution)
         for col in company_columns:
@@ -87,11 +96,13 @@ def main():
         posted_company_df = pd.DataFrame(columns=company_columns)
         # Initialize with empty dataframe with MultiIndex
         posted_company_df = posted_company_df.set_index(['uen', 'crawl_date', 'version'])
+        posted_company_df = posted_company_df.sort_index() # Ensure index is sorted for performance
     except Exception as e:
         print(f"Error loading Parquet file {posted_company_parquet_file}: {e}. Creating a new DataFrame.")
         posted_company_df = pd.DataFrame(columns=company_columns)
         # Initialize with empty dataframe with MultiIndex
         posted_company_df = posted_company_df.set_index(['uen', 'crawl_date', 'version'])
+        posted_company_df = posted_company_df.sort_index() # Ensure index is sorted for performance
 
     if not data_path.is_dir():
         print(f"Error: Data source directory not found: {data_path}")
@@ -109,8 +120,6 @@ def main():
     new_companies = {}  # Dictionary to collect companies by UEN during JSON processing
 
     for json_file_path in data_path.glob("*.json"):
-        if file_count > 10:
-            break
         file_count += 1
         print(f"--- Processing file: {json_file_path.name} ---")
         try:
@@ -130,10 +139,13 @@ def main():
 
         except FileNotFoundError: 
             print(f"Error: File disappeared during processing: {json_file_path}")
+            error_count += 1
         except json.JSONDecodeError:
             print(f"Error: Invalid JSON in file: {json_file_path}")
+            error_count += 1
         except Exception as e: 
             print(f"An error occurred while processing file '{json_file_path}': {e}")
+            error_count += 1
             import traceback
             traceback.print_exc()
     
@@ -213,13 +225,24 @@ def main():
                         new_dump = company.model_dump()
                         old_dump = existing_company_model.model_dump()
                         diff_record = {col: None for col in company_columns if col not in ['uen', 'crawl_date', 'version']}
+                        diff_summary_entry = {
+                            'uen': uen,
+                            'crawl_date': crawl_date,
+                            'new_version': next_version,
+                            'differences': {}
+                        }
                         for key in new_dump.keys():
                             if key != 'uen' and new_dump.get(key) != old_dump.get(key):
                                 diff_record[key] = new_dump.get(key)
                                 print(f"  Difference in '{key}':")
                                 print(f"    Previous: {old_dump.get(key)}")
                                 print(f"    New:      {new_dump.get(key)}")
+                                diff_summary_entry['differences'][key] = {
+                                    'previous': old_dump.get(key),
+                                    'new': new_dump.get(key)
+                                }
                         
+                        diff_companies_summary.append(diff_summary_entry)
                         idx = (uen, crawl_date, next_version)
                         posted_company_df.loc[idx] = pd.Series(diff_record)
                         print(f"Added new version {next_version} for UEN: {uen}, crawl_date: {crawl_date}")
@@ -227,6 +250,7 @@ def main():
                         print(f"No differences found for UEN '{uen}', not creating new version.")
                 except Exception as ex_pydantic:
                     print(f"Error reconstructing/comparing PostedCompany from DataFrame for UEN {uen}: {ex_pydantic}")
+                    error_count += 1
                     new_company_data = company.model_dump()
                     idx = (uen, crawl_date, next_version) # Use updated next_version
                     row_data = {k: v for k, v in new_company_data.items() if k != 'uen'}
@@ -242,6 +266,7 @@ def main():
         except KeyError: # This means (uen, crawl_date) was not found in the index
             # No existing records for this UEN and crawl_date, add as new
             new_company_data = company.model_dump()
+            # error_count +=1 # Not an error, just a new company
             idx = (uen, crawl_date, version) # Use current crawl's version
             row_data = {k: v for k, v in new_company_data.items() if k != 'uen'}
             posted_company_df.loc[idx] = pd.Series(row_data)
@@ -249,6 +274,7 @@ def main():
         
         except Exception as e:
             print(f"General error processing UEN {uen}, crawl_date {crawl_date}: {e}")
+            error_count += 1
             # Fall back to adding a new version with all data, using the initial 'version' for this crawl
             import traceback
             traceback.print_exc()
@@ -259,21 +285,25 @@ def main():
             print(f"Added new version {version} for UEN: {uen} with complete data due to general processing error.")
 
     # Saving logic using args.database_directory
-    print(f"\nSaving PostedCompany data as Parquet file in directory: {db_dir}")
+    output_dir_for_parquet = db_dir / args.next_date
+    print(f"\nSaving PostedCompany data in directory: {output_dir_for_parquet}")
     try:
-        db_dir.mkdir(parents=True, exist_ok=True)
-
+        output_dir_for_parquet.mkdir(parents=True, exist_ok=True)
+        # error_count +=1 # Not an error
         if not posted_company_df.empty:
             df_to_save = posted_company_df.reset_index()  # Make 'uen', 'crawl_date', 'version' columns for saving
-            output_parquet_path = db_dir / f"{args.date}-posted_companies.parquet"
+            output_parquet_path = output_dir_for_parquet / "posted_companies.parquet" # Use next_date for output subdirectory
             df_to_save.to_parquet(output_parquet_path, index=False)
-            print(f"  Saved {output_parquet_path.name}")
+            print(f"  Saved {output_parquet_path}")
         else:
-            print(f"  Skipping {args.date}-posted_companies.parquet as no data was found/generated.")
+            # Construct the expected path for the print statement
+            skipped_output_parquet_path = output_dir_for_parquet / "posted_companies.parquet"
+            print(f"  Skipping {skipped_output_parquet_path} as no data was found/generated.")
         
-        print(f"Successfully processed Parquet saving to {db_dir}")
+        print(f"Successfully processed Parquet saving to {output_dir_for_parquet}")
     except Exception as e:
-        print(f"Error saving Parquet data to '{db_dir}': {e}")
+        print(f"Error saving Parquet data to '{output_dir_for_parquet}': {e}")
+        error_count += 1
         import traceback
         traceback.print_exc()
 
@@ -282,6 +312,17 @@ def main():
         print(f"Processed {file_count} JSON file(s) from {data_path}.")
     print(f"Total unique PostedCompany entries stored: {len(posted_company_df)}")
     print(f"Processed {processed_count} companies from JSON files.")
+    print(f"Total errors encountered: {error_count}")
+
+    if diff_companies_summary:
+        print("\n--- Summary of Differences ---")
+        for entry in diff_companies_summary:
+            print(f"UEN: {entry['uen']}, Crawl Date: {entry['crawl_date']}, New Version: {entry['new_version']}")
+            for field, changes in entry['differences'].items():
+                print(f"  Field '{field}':")
+                print(f"    Previous: {changes['previous']}")
+                print(f"    New:      {changes['new']}")
+            print("---")
 
 if __name__ == "__main__":
     main()
