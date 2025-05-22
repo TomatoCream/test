@@ -112,6 +112,46 @@ def build_url(page: int, limit: int = 100) -> str:
     """Build the API URL with page and limit parameters."""
     return f"https://api.mycareersfuture.gov.sg/v2/search?limit={limit}&page={page}"
 
+def fetch_job_details(job_uuid: str, delay: int = 3) -> Optional[Dict[str, Any]]:
+    """Fetch detailed data for a specific job UUID with rate limiting."""
+    url = f"https://api.mycareersfuture.gov.sg/v2/jobs/{job_uuid}?updateApplicationCount=true"
+    
+    headers = {
+        'accept': '*/*',
+        'accept-language': 'en-GB,en;q=0.9',
+        # 'content-type': 'application/json', # Not typically needed for GET requests without a body
+        'mcf-client': 'jobseeker',
+        'origin': 'https://www.mycareersfuture.gov.sg',
+        'priority': 'u=1, i',
+        'referer': 'https://www.mycareersfuture.gov.sg/',
+        'sec-ch-ua': '"Brave";v="135", "Not-A.Brand";v="8", "Chromium";v="135"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Linux"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-site',
+        'sec-gpc': '1',
+        'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
+    }
+    
+    try:
+        print(f"Fetching job details for UUID: {job_uuid} from {url}")
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            return data
+        else:
+            print(f"Warning: Received status code {response.status_code} for job UUID {job_uuid}. Response: {response.text[:200]}...")
+            return None
+    except json.JSONDecodeError:
+        print(f"Warning: Could not decode JSON for job UUID {job_uuid}. Response: {response.text[:200]}...")
+        return None
+    except Exception as e:
+        print(f"Error fetching job details for UUID {job_uuid}: {e}")
+        return None
+    finally:
+        time.sleep(delay)
+
 def fetch_page(page: int, payload: Dict[str, Any], limit: int = 100, delay: int = 3) -> Optional[Dict[str, Any]]:
     """Fetch data from a specific page with rate limiting."""
     url = build_url(page, limit)
