@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 
 
@@ -9,7 +9,7 @@ class Skills(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     uuid: str = Field(description="Unique identifier for the skill")
@@ -23,7 +23,7 @@ class EmploymentTypes(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     id: int = Field(description="Employment type ID")
@@ -36,7 +36,7 @@ class Districts(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     id: int = Field(description="District ID")
@@ -52,7 +52,7 @@ class Address(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     unit: Optional[str] = Field(default=None, description="Unit number")
@@ -76,7 +76,7 @@ class Scheme(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     id: int = Field(description="Scheme ID")
@@ -89,13 +89,13 @@ class Schemes(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     expiry_date: Optional[date] = Field(default=None, alias="expiryDate", description="Scheme expiry date")
     start_date: Optional[date] = Field(default=None, alias="startDate", description="Scheme start date")
     scheme: Optional[Scheme] = Field(default=None, description="Scheme details")
-    sub_scheme: Optional[str] = Field(default=None, alias="subScheme", description="Sub-scheme information")
+    # sub_scheme: Optional[Scheme] = Field(default=None, alias="subScheme", description="Sub-scheme information")
 
 
 class ResponsiveEmployer(BaseModel):
@@ -104,7 +104,7 @@ class ResponsiveEmployer(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     is_responsive: bool = Field(alias="isResponsive", description="Whether the employer is responsive")
@@ -116,12 +116,12 @@ class Company(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
-    ssic_code: str = Field(alias="ssicCode", description="Singapore Standard Industrial Classification code")
+    ssic_code: Optional[str] = Field(default=None, alias="ssicCode", description="Singapore Standard Industrial Classification code")
     last_sync_date: datetime = Field(alias="lastSyncDate", description="Last synchronization date")
-    employee_count: int = Field(alias="employeeCount", description="Number of employees in the company")
+    employee_count: Optional[int] = Field(default=None, alias="employeeCount", description="Number of employees in the company")
     uen: str = Field(description="Unique Entity Number of the company")
     logo_upload_path: Optional[str] = Field(
         default=None, 
@@ -161,7 +161,7 @@ class SalaryType(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     id: int = Field(description="Salary type ID")
@@ -174,7 +174,7 @@ class Salary(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     minimum: Optional[int] = Field(default=None, description="Minimum salary")
@@ -188,7 +188,7 @@ class PositionLevels(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     id: int = Field(description="Position level ID")
@@ -201,7 +201,7 @@ class Status(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     job_status: str = Field(alias="jobStatus", description="Current job status")
@@ -214,12 +214,12 @@ class Metadata(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     created_at: datetime = Field(alias="createdAt", description="Job creation timestamp")
     edit_count: int = Field(alias="editCount", description="Number of edits made to the job")
-    email_recipient: str = Field(alias="emailRecipient", description="Email recipient identifier")
+    email_recipient: Optional[str] = Field(default=None, alias="emailRecipient", description="Email recipient identifier")
     is_hide_salary: bool = Field(alias="isHideSalary", description="Whether salary is hidden")
     is_hide_company_address: bool = Field(alias="isHideCompanyAddress", description="Whether company address is hidden")
     repost_count: int = Field(alias="repostCount", description="Number of times job was reposted")
@@ -245,7 +245,7 @@ class FlexibleWorkArrangements(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     id: int = Field(description="Flexible work arrangement ID")
@@ -258,7 +258,7 @@ class Categories(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     id: int = Field(description="Category ID")
@@ -271,7 +271,7 @@ class Job(BaseModel):
     model_config = ConfigDict(
         str_strip_whitespace=True,
         validate_assignment=True,
-        extra="forbid"
+        extra="ignore"
     )
     
     psd_url: Optional[str] = Field(default=None, alias="psdUrl", description="PSD URL")
