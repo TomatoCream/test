@@ -49,7 +49,7 @@ class Skill(BaseModel):
 
 class Status(BaseModel):
     """Represents the current status of a job posting."""
-    id: Union[str, int] = Field(description="Identifier for the job status (e.g., '102' or 102).")
+    id: int = Field(description="Identifier for the job status (e.g., '102' or 102).")
     jobStatus: str = Field(description="Descriptive status of the job posting (e.g., 'Re-open').")
 
 class PositionLevel(BaseModel):

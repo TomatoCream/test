@@ -1,16 +1,78 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Type, Tuple
+from typing import Any, Dict, List, Type, Tuple, Callable
 import pandas as pd
 from datetime import datetime
 import numpy as np
 import traceback
+from pydantic import BaseModel, Field, field_validator
 
 # Assuming schema.py is in the same directory or accessible via PYTHONPATH
 from schema import (
-    JobSearchResponse, PostedCompany, BaseModel
+    JobSearchResponse, JobResult, PostedCompany, Districts, PositionLevel, Skill, JobEmploymentType, Category, Status
 )
+
+# Configuration for different data types
+DATA_TYPE_CONFIG: Dict[str, Dict[str, Any]] = {
+    "JobResult": {
+        "model": JobResult,
+        "key_name": "uuid",
+        "parquet_filename": "job_results.parquet",
+        "json_path_getter": lambda job_result: [job_result] if job_result else [],
+        "description": "Job results"
+    },
+    "PostedCompany": {
+        "model": PostedCompany,
+        "key_name": "uen",
+        "parquet_filename": "posted_companies.parquet",
+        "json_path_getter": lambda job_result: [job_result.postedCompany] if job_result.postedCompany else [],
+        "description": "Company posting the job"
+    },
+    "Districts": {
+        "model": Districts,
+        "key_name": "id",
+        "parquet_filename": "districts.parquet",
+        "json_path_getter": lambda job_result: job_result.address.districts if job_result.address and job_result.address.districts else [],
+        "description": "Job location districts"
+    },
+    "PositionLevel": {
+        "model": PositionLevel,
+        "key_name": "id",
+        "parquet_filename": "position_levels.parquet",
+        "json_path_getter": lambda job_result: job_result.positionLevels if job_result.positionLevels else [],
+        "description": "Job position levels"
+    },
+    "Skill": {
+        "model": Skill,
+        "key_name": "uuid", # Assuming 'uuid' for Skill based on investigate_data_consistency.py
+        "parquet_filename": "skills.parquet",
+        "json_path_getter": lambda job_result: job_result.skills if job_result.skills else [],
+        "description": "Job skills"
+    },
+    "JobEmploymentType": {
+        "model": JobEmploymentType,
+        "key_name": "id",
+        "parquet_filename": "employment_types.parquet",
+        "json_path_getter": lambda job_result: job_result.employmentTypes if job_result.employmentTypes else [],
+        "description": "Job employment types"
+    },
+    "Category": {
+        "model": Category,
+        "key_name": "id",
+        "parquet_filename": "categories.parquet",
+        "json_path_getter": lambda job_result: job_result.categories if job_result.categories else [],
+        "description": "Job categories"
+    },
+    "Status": {
+        "model": Status,
+        "key_name": "id",
+        "parquet_filename": "statuses.parquet",
+        "json_path_getter": lambda job_result: [job_result.status] if job_result.status else [],
+        "description": "Job statuses"
+    },
+    # Add other data types here as needed
+}
 
 def merge_df_rows_by_sort_key(
     df: pd.DataFrame, 
@@ -108,7 +170,6 @@ def _process_item_versioning(
     key_value: Any,
     item_model_instance: BaseModel,
     pydantic_model: Type[BaseModel],
-    all_df_columns: List[str],
     crawl_date: str,
     current_version: int,
     diff_summary_list: List[Dict[str, Any]],
@@ -120,13 +181,10 @@ def _process_item_versioning(
     Args:
         df: The main DataFrame holding all versioned items. Its index is (key_name, 'crawl_date', 'version').
             The columns of df are the fields of the Pydantic model, excluding key_name, 'crawl_date', and 'version'.
-        key_name: The name of the primary key column (e.g., 'uen').
+        key_name: The name of the primary key column (e.g., 'uen', 'id').
         key_value: The value of the primary key for the current item.
         item_model_instance: The Pydantic model instance of the new item data.
-        pydantic_model: The Pydantic model class (e.g., PostedCompany).
-        all_df_columns: A list of all column names that *could* be in the DataFrame if it were fully populated
-                        (including key_name, crawl_date, version, and all Pydantic model fields).
-                        Used for reconstructing records and series.
+        pydantic_model: The Pydantic model class (e.g., PostedCompany, District).
         crawl_date: The current crawl date.
         current_version: The version number of the current crawl (used for new items or as a base).
         diff_summary_list: A list to append difference summaries if debug_mode is True.
@@ -343,6 +401,14 @@ def main():
         help="Date in YYYYMMDD format, for processing new JSON files and naming the output Parquet file."
     )
     parser.add_argument(
+        "--data-type",
+        type=str,
+        nargs='+',  # Allow multiple data types
+        default=["Districts","PositionLevel","Skill","JobEmploymentType","Category","Status","PostedCompany","JobResult"],
+        choices=list(DATA_TYPE_CONFIG.keys()),
+        help="Specify one or more data types to process."
+    )
+    parser.add_argument(
         "--directory",
         type=str,
         default="raw_data",
@@ -369,233 +435,236 @@ def main():
 
     data_path = Path(args.directory) / args.next_date
     db_dir = Path(args.database_directory)
-    posted_company_parquet_file = db_dir / args.previous_date / "posted_companies.parquet"
     
     # Convert date string to standard format for storage
-    crawl_date = args.next_date
-    version = args.version
+    crawl_date = args.next_date # This is common for all data types processed in this run
+    version = args.version # Common version for this crawl
 
-    # Initialize posted_company_df
-    company_columns = list(PostedCompany.model_fields.keys())
-    # Add crawl_date and version columns
-    if 'crawl_date' not in company_columns:
-        company_columns.append('crawl_date')
-    if 'version' not in company_columns:
-        company_columns.append('version')
+    # --- Read all JSON files once ---
+    json_responses: List[JobSearchResponse] = []
+    if data_path.is_dir():
+        print(f"Reading JSON files from: {data_path}")
+        json_file_count = 0
+        for json_file_path in data_path.glob("*.json"):
+            json_file_count += 1
+            print(f"--- Reading file: {json_file_path.name} ---")
+            try:
+                with open(json_file_path, 'r', encoding='utf-8') as f:
+                    json_data_str = f.read()
+                job_response = JobSearchResponse.model_validate_json(json_data_str)
+                json_responses.append(job_response)
+            except FileNotFoundError:
+                print(f"Error: File disappeared during reading: {json_file_path}")
+                # Potentially log this error more formally or add to a run summary
+            except json.JSONDecodeError:
+                print(f"Error: Invalid JSON in file: {json_file_path}")
+            except Exception as e:
+                print(f"An error occurred while reading file '{json_file_path}': {e}")
+                traceback.print_exc()
+        if json_file_count == 0:
+            print(f"No JSON files found in {data_path}.")
+    else:
+        print(f"Warning: Data source directory not found: {data_path}. Proceeding without JSON data.")
 
-    error_count = 0
-    diff_companies_summary = []
-    newly_added_companies_count = 0 # Initialize counter for newly added companies
-    
-    # Define key name for companies
-    company_key_name = 'uen'
-
-    try:
-        print(f"Attempting to load existing data from {posted_company_parquet_file}")
-        posted_company_df = pd.read_parquet(posted_company_parquet_file)
+    # --- Loop through each selected data type ---
+    selected_data_types = args.data_type
+    for selected_data_type in selected_data_types:
+        config = DATA_TYPE_CONFIG[selected_data_type]
+        pydantic_model = config["model"]
+        item_key_name = config["key_name"]
+        parquet_filename = config["parquet_filename"]
+        json_path_getter = config["json_path_getter"]
+        item_description = config["description"]
         
-        # Check and add required columns if missing from Parquet (e.g. older schema)
-        # The index columns 'uen', 'crawl_date', 'version' are critical.
-        # If they were not saved as regular columns but as index, reset_index() later will handle it.
-        # For now, ensure they exist if it was saved with index=False or with different names.
+        print(f"\n=== Processing data type: {item_description} ({selected_data_type}) ===")
         
-        # Ensure all model columns (plus crawl_date, version) exist, add if missing
-        # This is important if the Parquet file is from an older schema.
-        for col in company_columns: # company_columns now includes crawl_date, version
-            if col not in posted_company_df.columns and col not in [company_key_name, 'crawl_date', 'version']:
-                 # Only add if it's a data column, not an index column (which might be handled by set_index)
-                posted_company_df[col] = None
+        item_parquet_file = db_dir / args.previous_date / parquet_filename
         
-        # Standardize 'uen', 'crawl_date', 'version' if they were part of the index or need creation
-        # If loaded with index, reset it to make them columns before set_index
-        if isinstance(posted_company_df.index, pd.MultiIndex) or posted_company_df.index.name is not None:
-            posted_company_df = posted_company_df.reset_index()
+        # Initialize DataFrame for the current data type
+        item_columns = list(pydantic_model.model_fields.keys())
+        if 'crawl_date' not in item_columns:
+            item_columns.append('crawl_date')
+        if 'version' not in item_columns:
+            item_columns.append('version')
 
-        for col in [company_key_name, 'crawl_date', 'version']:
-            if col not in posted_company_df.columns:
-                if col == 'crawl_date':
-                    # This is a tricky fill; previous_date might not be right for all historical records.
-                    # Best if crawl_date was always present. Forcing it might be incorrect.
-                    # Original code assigned args.previous_date.
-                    print(f"Warning: '{col}' column missing. Attempting to fill with {args.previous_date}.")
-                    posted_company_df[col] = args.previous_date 
-                elif col == 'version':
-                     # Similar issue for version.
-                    print(f"Warning: '{col}' column missing. Attempting to fill with {version}.")
-                    posted_company_df[col] = version 
-                elif col == company_key_name:
-                    # This is critical. If uen is missing, we have a big problem.
-                    print(f"CRITICAL Error: '{col}' (key column) not found in {posted_company_parquet_file}. Cannot proceed with versioning.")
-                    # Forcing creation of empty DF as fallback
-                    posted_company_df = pd.DataFrame(columns=company_columns)
-                    posted_company_df = posted_company_df.set_index([company_key_name, 'crawl_date', 'version'], drop=True)
-                    posted_company_df = posted_company_df.sort_index()
-                    break 
-                else: # Should not be reached if col is one of the three
-                    posted_company_df[col] = None
-
-        # Ensure all model fields (non-index) are present
-        for model_field in PostedCompany.model_fields.keys():
-            if model_field not in [company_key_name, 'crawl_date', 'version'] and model_field not in posted_company_df.columns:
-                posted_company_df[model_field] = None
-
-
-        # Set up multi-index using the key, crawl_date, and version
-        # We need to ensure these columns are suitable for indexing (e.g., not all NaNs)
-        if not posted_company_df.empty:
-            # Before setting index, ensure the columns exist and have valid data
-            # For example, if 'version' was just added and is all None, indexing might be problematic.
-            # The original code assumed 'version' would be populated or handled.
-            # If 'version' or 'crawl_date' were missing and filled with a single value, that's fine for indexing.
-            # If company_key_name (e.g. 'uen') is missing, the critical error above should handle it.
-            
-            # Convert to appropriate types before setting index, if necessary
-            # Example: posted_company_df['version'] = pd.to_numeric(posted_company_df['version'], errors='coerce').fillna(0).astype(int)
-
-            posted_company_df = posted_company_df.set_index([company_key_name, 'crawl_date', 'version'], drop=True)
-            posted_company_df = posted_company_df.sort_index()
+        error_count_dt = 0 # Error count for this data type
+        diff_items_summary_dt: List[Dict[str, Any]] = [] # Diff summary for this data type
+        newly_added_items_count_dt = 0 # Newly added items for this data type
         
-        print(f"Successfully loaded {len(posted_company_df)} records.")
-
-    except FileNotFoundError:
-        print(f"No existing Parquet file found at {posted_company_parquet_file}. Creating a new DataFrame.")
-        posted_company_df = pd.DataFrame(columns=company_columns)
-        posted_company_df = posted_company_df.set_index([company_key_name, 'crawl_date', 'version'], drop=True)
-    except Exception as e:
-        print(f"Error loading Parquet file {posted_company_parquet_file}: {e}. Creating a new DataFrame.")
-        traceback.print_exc()
-        posted_company_df = pd.DataFrame(columns=company_columns)
-        posted_company_df = posted_company_df.set_index([company_key_name, 'crawl_date', 'version'], drop=True)
-
-    # Ensure the DataFrame has all columns required by the Pydantic model + versioning columns, even if empty
-    # The index columns are already handled by set_index(drop=False)
-    for col in PostedCompany.model_fields.keys():
-        if col not in posted_company_df.columns and col not in posted_company_df.index.names:
-            posted_company_df[col] = None
-    # Ensure 'crawl_date' and 'version' columns exist if not part of index (though they should be)
-    if 'crawl_date' not in posted_company_df.columns and 'crawl_date' not in posted_company_df.index.names:
-        posted_company_df['crawl_date'] = None # Or a default like args.previous_date
-    if 'version' not in posted_company_df.columns and 'version' not in posted_company_df.index.names:
-         posted_company_df['version'] = None # Or a default like 1
-
-
-    if not data_path.is_dir():
-        print(f"Error: Data source directory not found: {data_path}")
-        # Allow script to continue if only using database_directory for loading/saving
-
-    print(f"Processing JSON files in: {data_path}")
-    file_count = 0
-    json_files_exist = any(data_path.glob("*.json"))
-
-    if not json_files_exist and not posted_company_parquet_file.exists():
-        print(f"No JSON files found in {data_path} and no existing Parquet file to process.")
-    elif not json_files_exist and posted_company_parquet_file.exists():
-        print(f"No JSON files found in {data_path}. Will only save existing loaded data if modified (or just resave).")
-
-    new_companies = {}  # Dictionary to collect companies by UEN during JSON processing
-
-    for json_file_path in data_path.glob("*.json"):
-        file_count += 1
-        print(f"--- Processing file: {json_file_path.name} ---")
         try:
-            with open(json_file_path, 'r', encoding='utf-8') as f:
-                json_data_str = f.read()
+            print(f"Attempting to load existing data from {item_parquet_file}")
+            item_df = pd.read_parquet(item_parquet_file)
             
-            job_response = JobSearchResponse.model_validate_json(json_data_str)
+            if isinstance(item_df.index, pd.MultiIndex) or item_df.index.name is not None:
+                item_df = item_df.reset_index()
 
-            for job_result in job_response.results:
-                if job_result.postedCompany:
-                    company = job_result.postedCompany
-                    uen = company.uen
+            for col in item_columns:
+                if col not in item_df.columns and col not in [item_key_name, 'crawl_date', 'version']:
+                    item_df[col] = None
+            
+            for col in [item_key_name, 'crawl_date', 'version']:
+                if col not in item_df.columns:
+                    fill_value = None
+                    if col == 'crawl_date': fill_value = args.previous_date
+                    elif col == 'version': fill_value = version # Default version if missing
                     
-                    # Store the company by UEN for later processing
-                    if uen not in new_companies:
-                        new_companies[uen] = company
-
-        except FileNotFoundError: 
-            print(f"Error: File disappeared during processing: {json_file_path}")
-            error_count += 1
-        except json.JSONDecodeError:
-            print(f"Error: Invalid JSON in file: {json_file_path}")
-            error_count += 1
-        except Exception as e: 
-            print(f"An error occurred while processing file '{json_file_path}': {e}")
-            error_count += 1
-            traceback.print_exc()
-    
-    if file_count == 0 and json_files_exist:
-         print(f"No JSON files were processed despite being found initially in {data_path}.")
-    elif file_count == 0 and not json_files_exist:
-         print(f"No JSON files found in {data_path} to process.")
-
-    # Process the collected companies
-    processed_count = 0
-    for uen, company in new_companies.items():
-        processed_count += 1
-        
-        item_errors, item_newly_added = _process_item_versioning(
-            df=posted_company_df,
-            key_name=company_key_name,
-            key_value=uen,
-            item_model_instance=company,
-            pydantic_model=PostedCompany,
-            all_df_columns=company_columns, # These are all potential columns for the DataFrame
-            crawl_date=crawl_date,
-            current_version=version,
-            diff_summary_list=diff_companies_summary,
-            debug_mode=args.debug
-        )
-        error_count += item_errors
-        newly_added_companies_count += item_newly_added
-
-    # Saving logic using args.database_directory
-    output_dir_for_parquet = db_dir / args.next_date
-    print(f"\nSaving PostedCompany data in directory: {output_dir_for_parquet}")
-    try:
-        output_dir_for_parquet.mkdir(parents=True, exist_ok=True)
-        if not posted_company_df.empty:
-            df_to_save = posted_company_df.reset_index()  # Make 'uen', 'crawl_date', 'version' columns for saving
-            output_parquet_path = output_dir_for_parquet / "posted_companies.parquet" # Use next_date for output subdirectory
-            df_to_save.to_parquet(output_parquet_path, index=False)
-            print(f"  Saved {output_parquet_path}")
-        else:
-            # Construct the expected path for the print statement
-            skipped_output_parquet_path = output_dir_for_parquet / "posted_companies.parquet"
-            print(f"  Skipping {skipped_output_parquet_path} as no data was found/generated.")
-        
-        print(f"Successfully processed Parquet saving to {output_dir_for_parquet}")
-    except Exception as e:
-        print(f"Error saving Parquet data to '{output_dir_for_parquet}': {e}")
-        error_count += 1
-        traceback.print_exc()
-
-    print("\n--- Investigation Complete ---")
-    if json_files_exist or file_count > 0:
-        print(f"Processed {file_count} JSON file(s) from {data_path}.")
-    print(f"Total unique PostedCompany entries stored: {len(posted_company_df)}")
-    print(f"Processed {processed_count} companies from JSON files.")
-    print(f"Newly added companies: {newly_added_companies_count}") # Print the count of newly added companies
-    print(f"Total errors encountered: {error_count}")
-
-    if args.debug and diff_companies_summary: # Only print if debug and list is not empty
-        print("\n--- Summary of Differences ---")
-        for entry in diff_companies_summary:
-            print(f"UEN: {entry['uen']}, Crawl Date: {entry['crawl_date']}, New Version: {entry['new_version']}")
-            # Check if 'differences' key exists and is a dictionary
-            if isinstance(entry.get('differences'), dict):
-                for field, changes in entry['differences'].items():
-                    # Handle cases where changes might not be the expected dict
-                    if isinstance(changes, dict) and 'previous' in changes and 'new' in changes:
-                        print(f"  Field '{field}':")
-                        print(f"    Previous: {changes['previous']}")
-                        print(f"    New:      {changes['new']}")
-                    elif field == '_comment': # Handle special comment for Pydantic inequality
-                        print(f"  Comment: {changes}")
+                    if col == item_key_name and fill_value is None: # Should not happen if key_name is always there
+                         print(f"CRITICAL Error: '{col}' (key column) not found in {item_parquet_file} and no default. Cannot proceed for {selected_data_type}.")
+                         item_df = pd.DataFrame(columns=item_columns).set_index([item_key_name, 'crawl_date', 'version'], drop=True).sort_index()
+                         # Skip further processing for this data type or handle error appropriately
+                         continue # Or raise an error
                     else:
-                        print(f"  Field '{field}': {changes}") # Fallback for unexpected format
+                        print(f"Warning: Column '{col}' missing in {item_parquet_file} for {selected_data_type}. Attempting to fill.")
+                        item_df[col] = fill_value
+
+            for model_field in pydantic_model.model_fields.keys():
+                if model_field not in [item_key_name, 'crawl_date', 'version'] and model_field not in item_df.columns:
+                    item_df[model_field] = None
+            
+            # Set index after ensuring columns exist
+            item_df = item_df.set_index([item_key_name, 'crawl_date', 'version'], drop=True).sort_index()
+            print(f"Successfully loaded {len(item_df)} records for {selected_data_type}.")
+
+        except FileNotFoundError:
+            print(f"No existing Parquet file found at {item_parquet_file}. Creating a new DataFrame for {selected_data_type}.")
+            data_cols = [f for f in pydantic_model.model_fields.keys() if f not in [item_key_name, 'crawl_date', 'version']]
+            index_names = [item_key_name, 'crawl_date', 'version']
+            item_df = pd.DataFrame(columns=data_cols,
+                                   index=pd.MultiIndex.from_tuples([], names=index_names))
+        except Exception as e:
+            print(f"Error loading Parquet file {item_parquet_file} for {selected_data_type}: {e}. Creating a new DataFrame.")
+            traceback.print_exc()
+            data_cols = [f for f in pydantic_model.model_fields.keys() if f not in [item_key_name, 'crawl_date', 'version']]
+            index_names = [item_key_name, 'crawl_date', 'version']
+            item_df = pd.DataFrame(columns=data_cols,
+                                   index=pd.MultiIndex.from_tuples([], names=index_names))
+            error_count_dt += 1
+
+        # Ensure all necessary columns (Pydantic fields not in index) exist in the DataFrame
+        current_df_cols = list(item_df.columns)
+        current_df_index_names = list(item_df.index.names)
+        for col_model in pydantic_model.model_fields.keys():
+            if col_model not in current_df_cols and col_model not in current_df_index_names:
+                item_df[col_model] = None
+        
+        # If DataFrame is empty and uninitialized (e.g. error during load created a shell)
+        if item_df.empty and not item_df.columns.any() and (not item_df.index.names or not item_df.index.names[0]):
+            print(f"Re-initializing empty DataFrame for {selected_data_type} with defined columns and index.")
+            data_columns_for_empty_df = [
+                f for f in pydantic_model.model_fields.keys() 
+                if f not in [item_key_name, 'crawl_date', 'version']
+            ]
+            item_df = pd.DataFrame(columns=data_columns_for_empty_df)
+            item_df = item_df.set_index([item_key_name, 'crawl_date', 'version'], drop=True)
+
+
+        # --- Extract items of current data type from pre-read JSON responses ---
+        new_items_map = {} # Items for the current data_type
+        if json_responses: # Only process if JSON files were successfully read
+            print(f"Extracting {item_description} from JSON data...")
+            for job_response in json_responses:
+                for job_result in job_response.results:
+                    extracted_instances = json_path_getter(job_result)
+                    for instance in extracted_instances:
+                        if instance:
+                            key_val = getattr(instance, item_key_name, None)
+                            if key_val is not None:
+                                if key_val not in new_items_map: # Keep only the first encountered for a given key from JSONs
+                                    new_items_map[key_val] = instance
+                            elif args.debug:
+                                print(f"Debug: Instance of {selected_data_type} found without key '{item_key_name}': {instance}")
+        else:
+            print(f"No JSON data to process for {selected_data_type}.")
+
+
+        # --- Process the collected items for the current data type ---
+        processed_count_dt = 0
+        if new_items_map:
+            print(f"Processing {len(new_items_map)} unique {item_description.lower()} items for versioning...")
+            for key_value, item_instance in new_items_map.items():
+                processed_count_dt += 1
+                item_errors, item_newly_added = _process_item_versioning(
+                    df=item_df, # This is the DataFrame for the current selected_data_type
+                    key_name=item_key_name,
+                    key_value=key_value,
+                    item_model_instance=item_instance,
+                    pydantic_model=pydantic_model,
+                    crawl_date=crawl_date, # Common crawl_date
+                    current_version=version, # Common version
+                    diff_summary_list=diff_items_summary_dt,
+                    debug_mode=True
+                )
+                error_count_dt += item_errors
+                newly_added_items_count_dt += item_newly_added
+        else:
+            print(f"No new items from JSON to process for {selected_data_type}.")
+
+
+        # --- Saving logic for the current data type ---
+        output_dir_for_parquet = db_dir / args.next_date
+        print(f"\nSaving {selected_data_type} data in directory: {output_dir_for_parquet}")
+        try:
+            output_dir_for_parquet.mkdir(parents=True, exist_ok=True)
+            if not item_df.empty:
+                # Ensure index is as expected before saving
+                if not (isinstance(item_df.index, pd.MultiIndex) and \
+                        item_df.index.names == [item_key_name, 'crawl_date', 'version']):
+                    print(f"Warning: Index for {selected_data_type} is not as expected before saving. Resetting and setting index.")
+                    temp_df_to_save = item_df.reset_index()
+                     # Check if all key_name, crawl_date, version columns exist after reset
+                    for col_idx in [item_key_name, 'crawl_date', 'version']:
+                         if col_idx not in temp_df_to_save.columns:
+                              print(f"Critical error: Index column '{col_idx}' missing before saving {selected_data_type}.")
+                              # Fallback or error
+                    df_to_save = temp_df_to_save
+                else:
+                    df_to_save = item_df.reset_index()
+
+                output_parquet_path = output_dir_for_parquet / parquet_filename
+                df_to_save.to_parquet(output_parquet_path, index=True)
+                print(f"  Saved {output_parquet_path}")
             else:
-                print(f"  Differences: {entry.get('differences')}") # Fallback if 'differences' is not a dict
-            print("---")
+                skipped_output_parquet_path = output_dir_for_parquet / parquet_filename
+                print(f"  Skipping save for {skipped_output_parquet_path} as DataFrame is empty for {selected_data_type}.")
+            
+            print(f"Successfully processed Parquet saving to {output_dir_for_parquet} for {selected_data_type}")
+        except Exception as e:
+            print(f"Error saving Parquet data for {selected_data_type} to '{output_dir_for_parquet}': {e}")
+            error_count_dt += 1
+            traceback.print_exc()
+
+        # --- Print summary for the current data type ---
+        print(f"\n--- {selected_data_type} Processing Complete ---")
+        if json_responses : # check if json_responses list is populated
+             # File count for JSON reading is done once globally
+             pass # Global count will be printed at the end if needed.
+        print(f"Total unique {selected_data_type} entries stored/updated: {len(item_df)}")
+        print(f"Processed {processed_count_dt} unique {item_description.lower()} items from JSON files for {selected_data_type}.")
+        print(f"Newly added {selected_data_type.lower()} items: {newly_added_items_count_dt}")
+        print(f"Total errors encountered for {selected_data_type}: {error_count_dt}")
+
+        if args.debug and diff_items_summary_dt:
+            print(f"\n--- Summary of Differences for {selected_data_type} ---")
+            for entry in diff_items_summary_dt:
+                print(f"{item_key_name.upper()}: {entry.get(item_key_name)}, Crawl Date: {entry.get('crawl_date')}, New Version: {entry.get('new_version')}")
+                if isinstance(entry.get('differences'), dict):
+                    for field, changes in entry['differences'].items():
+                        if isinstance(changes, dict) and 'previous' in changes and 'new' in changes:
+                            print(f"  Field '{field}':")
+                            print(f"    Previous: {changes['previous']}")
+                            print(f"    New:      {changes['new']}")
+                        elif field == '_comment':
+                            print(f"  Comment: {changes}")
+                        else:
+                            print(f"  Field '{field}': {changes}")
+                else:
+                    print(f"  Differences: {entry.get('differences')}")
+                print("---")
+        # End of loop for selected_data_type
+
+    print("\n=== All Processing Complete ===")
+    # Optionally, print global summary here if needed, e.g., total JSON files read.
+    # The individual error counts, etc., are per data type.
 
 if __name__ == "__main__":
     main()

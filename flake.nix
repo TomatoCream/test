@@ -27,6 +27,7 @@
             pyarrow
 
             pandas
+            orjson
           ])
         myPython.pkgs;
       in {
