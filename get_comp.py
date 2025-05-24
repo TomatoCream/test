@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import requests
-import json
+import orjson as json
 import os
 from datetime import datetime
 import time
