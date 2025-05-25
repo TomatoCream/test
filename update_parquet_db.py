@@ -100,7 +100,7 @@ def read_raw_jobs_data(raw_data_dir: str, next_date: str) -> Optional[pd.DataFra
         logger.error(f"Error parsing jobs data: {e}")
         return None
 
-def process_skills_data(jobs_df: pd.DataFrame, previous_skills_df: Optional[pd.DataFrame]) -> pd.DataFrame:
+def process_skills_data(jobs_df: pd.DataFrame, previous_skills_df: Optional[pd.DataFrame], verbose_duplicates: bool = False) -> pd.DataFrame:
     """Process skills data from jobs DataFrame, update skills DataFrame, and replace job skills with IDs."""
 
     new_skills_added_count = 0
@@ -176,11 +176,11 @@ def process_skills_data(jobs_df: pd.DataFrame, previous_skills_df: Optional[pd.D
 
     if not skills_df.empty:
         if skills_df['id'].duplicated().any():
-            logger.warning("Duplicate IDs found in skills data. Rectifying...")
+            print_duplicate_data(skills_df.reset_index(), 'id', 'skills', verbose=verbose_duplicates)
             skills_df = skills_df.drop_duplicates(subset=['id'], keep='last')
 
         if skills_df['uuid'].duplicated().any():
-            logger.warning("Duplicate UUIDs found in skills data. Rectifying...")
+            print_duplicate_data(skills_df.reset_index(), 'uuid', 'skills', verbose=verbose_duplicates)
             skills_df = skills_df.drop_duplicates(subset=['uuid'], keep='last')
 
         skills_df = skills_df.sort_values(by=['id', 'uuid'])
@@ -279,7 +279,7 @@ def update_companies_data_with_jobs_data(jobs_df: pd.DataFrame, companies_df: pd
     else:
         companies_df.update(companies_df_work)
 
-def process_companies_data_from_new_file(companies: List[Company], previous_companies_df: Optional[pd.DataFrame]) -> pd.DataFrame:
+def process_companies_data_from_new_file(companies: List[Company], previous_companies_df: Optional[pd.DataFrame], verbose_duplicates: bool = False) -> pd.DataFrame:
     """Process companies data from companies and create/update companies DataFrame."""
     
     # Initialize companies tracking
@@ -345,9 +345,9 @@ def process_companies_data_from_new_file(companies: List[Company], previous_comp
     if not companies_df.empty:
         # Verify that id and uen are unique
         if companies_df['id'].duplicated().any():
-            logger.warning("Duplicate IDs found in companies data")
+            print_duplicate_data(companies_df, 'id', 'companies', verbose=verbose_duplicates)
         if companies_df['uen'].duplicated().any():
-            logger.warning("Duplicate UENs found in companies data")
+            print_duplicate_data(companies_df, 'uen', 'companies', verbose=verbose_duplicates)
         
         # Sort by both id and uen for consistent ordering (more performant to sort before indexing)
         companies_df = companies_df.sort_values(['id', 'uen'])
@@ -375,7 +375,8 @@ def process_jobs_data(
     employment_types_df: pd.DataFrame,
     status_df: pd.DataFrame,
     flexible_work_arrangements_df: pd.DataFrame,
-    categories_df: pd.DataFrame
+    categories_df: pd.DataFrame,
+    verbose_duplicates: bool = False
 ) -> pd.DataFrame:
     """
     Process jobs DataFrame, replacing nested objects with their IDs and create/update jobs DataFrame.
@@ -391,6 +392,7 @@ def process_jobs_data(
         status_df: Status DataFrame with ID mappings
         flexible_work_arrangements_df: Flexible work arrangements DataFrame with ID mappings
         categories_df: Categories DataFrame with ID mappings
+        verbose_duplicates: Enable verbose duplicate data inspection output
     
     Returns:
         Processed jobs DataFrame
@@ -607,7 +609,7 @@ def process_jobs_data(
     if not final_jobs_df.empty:
         # Verify uniqueness and sort
         if final_jobs_df['uuid'].duplicated().any():
-            logger.warning("Duplicate UUIDs found in jobs data. Rectifying...")
+            print_duplicate_data(final_jobs_df.reset_index(), 'uuid', 'jobs', verbose=verbose_duplicates)
             final_jobs_df = final_jobs_df.drop_duplicates(subset=['uuid'], keep='last')
 
         final_jobs_df = final_jobs_df.sort_values(by=['uuid'])
@@ -615,7 +617,7 @@ def process_jobs_data(
 
     return final_jobs_df
 
-def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_data_dir: str):
+def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_data_dir: str, verbose_duplicates: bool):
     """Main function to update the parquet database with new job data including skills, companies, districts, position levels, employment types, status, flexible work arrangements, and categories."""
     logger.info(f"Starting database update from {previous_date} to {next_date}")
     
@@ -628,11 +630,14 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
         logger.error("Failed to read jobs data, aborting")
         return
 
+    # Inspect raw jobs data for duplicates
+    inspect_raw_jobs_duplicates(jobs_df, verbose_duplicates)
+
     # Process Companies Data
     logger.info("Processing companies data...")
     companies = read_raw_companies_data(raw_data_dir, next_date)
     previous_companies_df = read_previous_parquet(db_data_dir, previous_date, "companies")
-    companies_df = process_companies_data_from_new_file(companies, previous_companies_df)
+    companies_df = process_companies_data_from_new_file(companies, previous_companies_df, verbose_duplicates)
 
     # process companies data combine with jobs data
     update_companies_data_with_jobs_data(jobs_df, companies_df)
@@ -644,7 +649,7 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
     # Process Skills Data
     logger.info("Processing skills data...")
     previous_skills_df = read_previous_parquet(db_data_dir, previous_date, "skills")
-    skills_df = process_skills_data(jobs_df, previous_skills_df)
+    skills_df = process_skills_data(jobs_df, previous_skills_df, verbose_duplicates)
     
     # Save skills data
     skills_output_path = os.path.join(next_date_dir, f"{next_date}_skills.parquet")
@@ -698,7 +703,8 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
             previous_df=previous_df,
             data_type_name=table_name,
             extractor_func=extractor_func,
-            columns=columns
+            columns=columns,
+            verbose_duplicates=verbose_duplicates
         )
         
         # Store the processed DataFrame for later use in jobs processing
@@ -721,7 +727,8 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
         employment_types_df=lookup_tables['employment_types'],
         status_df=lookup_tables['status'],
         flexible_work_arrangements_df=lookup_tables['flexible_work_arrangements'],
-        categories_df=lookup_tables['categories']
+        categories_df=lookup_tables['categories'],
+        verbose_duplicates=verbose_duplicates
     )
     
     # Save jobs data
@@ -736,7 +743,8 @@ def process_lookup_table_data(
     data_type_name: str,
     extractor_func: callable,
     columns: List[str],
-    id_column: str = 'id'
+    id_column: str = 'id',
+    verbose_duplicates: bool = False
 ) -> pd.DataFrame:
     """
     Generic function to process lookup table data from jobs DataFrame.
@@ -748,6 +756,7 @@ def process_lookup_table_data(
         extractor_func: Function that takes a job row (pd.Series) and returns list of dicts or None
         columns: List of column names for the DataFrame
         id_column: Name of the ID column (default: 'id')
+        verbose_duplicates: Enable verbose duplicate data inspection output
     
     Returns:
         Processed DataFrame
@@ -823,7 +832,7 @@ def process_lookup_table_data(
 
     if not df.empty:
         if df[id_column].duplicated().any():
-            logger.warning(f"Duplicate {id_column}s found in {data_type_name} data. Rectifying...")
+            print_duplicate_data(df.reset_index(), id_column, data_type_name, verbose=verbose_duplicates)
             df = df.drop_duplicates(subset=[id_column], keep='last')
 
         df = df.sort_values(by=[id_column])
@@ -831,12 +840,111 @@ def process_lookup_table_data(
 
     return df
 
+def print_duplicate_data(df: pd.DataFrame, column: str, data_type: str, max_examples: int = 5, verbose: bool = True):
+    """Print detailed information about duplicate data for inspection."""
+    if df[column].duplicated().any():
+        duplicates = df[df[column].duplicated(keep=False)]
+        duplicate_values = duplicates[column].value_counts()
+        
+        logger.warning(f"Found {len(duplicate_values)} unique {column} values with duplicates in {data_type} data:")
+        logger.warning(f"Total duplicate records: {len(duplicates)}")
+        
+        if not verbose:
+            return True
+        
+        print(f"\n=== DUPLICATE {data_type.upper()} DATA INSPECTION ===")
+        print(f"Column: {column}")
+        print(f"Unique duplicate values: {len(duplicate_values)}")
+        print(f"Total duplicate records: {len(duplicates)}")
+        
+        # Show top duplicate values by count
+        print(f"\nTop duplicate {column} values by count:")
+        for value, count in duplicate_values.head(10).items():
+            print(f"  {column} '{value}': {count} occurrences")
+        
+        # Show detailed examples of duplicate records
+        print(f"\nDetailed examples (showing up to {max_examples} duplicate groups):")
+        shown_examples = 0
+        for value in duplicate_values.head(max_examples).index:
+            duplicate_records = duplicates[duplicates[column] == value]
+            print(f"\n--- Duplicate group for {column} = '{value}' ({len(duplicate_records)} records) ---")
+            
+            # Reset index to show original row numbers if available
+            if hasattr(duplicate_records, 'reset_index'):
+                display_df = duplicate_records.reset_index()
+            else:
+                display_df = duplicate_records
+            
+            # Show all columns for first few records, then just key columns for the rest
+            if len(duplicate_records) <= 3:
+                print(display_df.to_string(max_cols=None, max_colwidth=50))
+            else:
+                # Show first 2 records in full
+                print("First 2 records (full details):")
+                print(display_df.head(2).to_string(max_cols=None, max_colwidth=50))
+                
+                # Show remaining records with key columns only
+                key_columns = [column]
+                if 'uuid' in display_df.columns and column != 'uuid':
+                    key_columns.append('uuid')
+                if 'uen' in display_df.columns and column != 'uen':
+                    key_columns.append('uen')
+                if 'id' in display_df.columns and column != 'id':
+                    key_columns.append('id')
+                
+                print(f"\nRemaining {len(duplicate_records) - 2} records (key columns only):")
+                # remaining_df = display_df.iloc[2:][key_columns]
+                # print(remaining_df.to_string())
+            
+            shown_examples += 1
+        
+        print(f"\n=== END DUPLICATE {data_type.upper()} DATA INSPECTION ===\n")
+        return True
+    return False
+
+def inspect_raw_jobs_duplicates(jobs_df: pd.DataFrame, verbose_duplicates: bool = False):
+    """Inspect duplicates in raw jobs data before processing."""
+    if jobs_df.empty:
+        return
+    
+    print("\n=== RAW JOBS DATA DUPLICATE INSPECTION ===")
+    
+    # Check for duplicate UUIDs in raw data
+    if 'uuid' in jobs_df.columns:
+        if jobs_df['uuid'].duplicated().any():
+            print_duplicate_data(jobs_df, 'uuid', 'raw jobs', verbose=verbose_duplicates)
+        else:
+            print("No duplicate UUIDs found in raw jobs data.")
+    
+    # Check for duplicate job post IDs if available
+    if 'metadata' in jobs_df.columns:
+        # Extract jobPostId from metadata if it's a dict
+        job_post_ids = []
+        for _, row in jobs_df.iterrows():
+            if isinstance(row['metadata'], dict) and 'jobPostId' in row['metadata']:
+                job_post_ids.append(row['metadata']['jobPostId'])
+            else:
+                job_post_ids.append(None)
+        
+        if job_post_ids:
+            temp_df = jobs_df.copy()
+            temp_df['jobPostId'] = job_post_ids
+            temp_df = temp_df[temp_df['jobPostId'].notna()]
+            
+            if not temp_df.empty and temp_df['jobPostId'].duplicated().any():
+                print_duplicate_data(temp_df, 'jobPostId', 'raw jobs (by jobPostId)', verbose=verbose_duplicates)
+            else:
+                print("No duplicate jobPostIds found in raw jobs data.")
+    
+    print("=== END RAW JOBS DATA DUPLICATE INSPECTION ===\n")
+
 def main():
     parser = argparse.ArgumentParser(description='Update parquet database with new job data including skills, companies, districts, position levels, employment types, status, flexible work arrangements, and categories')
     parser.add_argument('previous_date', type=str, help='Previous date in YYYYMMDD format')
     parser.add_argument('next_date', type=str, help='Next date in YYYYMMDD format')
     parser.add_argument('raw_data_dir', type=str, default='raw_data', help='Directory containing raw data')
     parser.add_argument('db_data_dir', type=str, default='db_data', help='Directory for parquet database files')
+    parser.add_argument('--verbose-duplicates', action='store_true', help='Enable verbose duplicate data inspection output')
     
     args = parser.parse_args()
     
@@ -857,7 +965,7 @@ def main():
     os.makedirs(args.db_data_dir, exist_ok=True)
     
     # Run the update
-    update_databases(args.previous_date, args.next_date, args.raw_data_dir, args.db_data_dir)
+    update_databases(args.previous_date, args.next_date, args.raw_data_dir, args.db_data_dir, args.verbose_duplicates)
 
 if __name__ == "__main__":
     main() 
