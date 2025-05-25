@@ -165,7 +165,7 @@ def create_directory_structure(output_dir, data_type):
     
     return pages_dir, today
 
-def fetch_and_save_page(page, pages_dir, today, headers, data_type, delay=0.5):
+def fetch_and_save_page(page, pages_dir, today, headers, data_type, delay=0.5, max_retries=3, backoff_delay=1.0):
     """
     Fetch and save a single page of data.
     
@@ -176,6 +176,8 @@ def fetch_and_save_page(page, pages_dir, today, headers, data_type, delay=0.5):
         headers (dict): HTTP headers for the request
         data_type (str): Type of data to fetch (companies, jobs, etc.)
         delay (float): Delay after request to be respectful to API
+        max_retries (int): Maximum number of retry attempts for failed requests
+        backoff_delay (float): Initial delay in seconds between retries
     
     Returns:
         tuple: (page, success, num_results) where success is bool and num_results is int
@@ -213,11 +215,21 @@ def fetch_and_save_page(page, pages_dir, today, headers, data_type, delay=0.5):
     
     # Make API request
     url = get_api_url(data_type, limit=100, page=page)
-    data = fetch_json_from_url(url, headers)
+    data = fetch_json_from_url(url, headers, max_retries, backoff_delay)
     
-    # Check if request failed
-    if not data:
-        print(f"[{thread_id}] Failed to fetch data for page {page}")
+    # Check if request failed (None return indicates failure)
+    if data is None:
+        print(f"[{thread_id}] Failed to fetch data for page {page} - request failed")
+        return page, False, 0
+    
+    # Additional validation for API response structure
+    if not isinstance(data, dict):
+        print(f"[{thread_id}] Invalid response format for page {page} - expected dict")
+        return page, False, 0
+    
+    # Check for API error responses (some APIs return errors in JSON format)
+    if 'error' in data or 'errors' in data:
+        print(f"[{thread_id}] API returned error for page {page}: {data.get('error', data.get('errors', 'Unknown error'))}")
         return page, False, 0
     
     # Check for shutdown request before saving
@@ -229,6 +241,11 @@ def fetch_and_save_page(page, pages_dir, today, headers, data_type, delay=0.5):
     if 'results' in data and len(data['results']) == 0:
         print(f"[{thread_id}] No results found for page {page}")
         return page, True, 0
+    
+    # Validate that we have the expected structure
+    if 'results' not in data:
+        print(f"[{thread_id}] Invalid response structure for page {page} - missing 'results' field")
+        return page, False, 0
     
     # Save the response to file
     try:
@@ -248,7 +265,7 @@ def fetch_and_save_page(page, pages_dir, today, headers, data_type, delay=0.5):
         print(f"[{thread_id}] Error saving page {page}: {e}")
         return page, False, 0
 
-def fetch_data(data_type, output_dir, delay=0.5, num_threads=4, max_pages=None, start_page=0):
+def fetch_data(data_type, output_dir, delay=0.5, num_threads=4, max_pages=None, start_page=0, max_retries=3, backoff_delay=1.0):
     """
     Fetch data from the API with pagination using multiple threads.
     
@@ -259,6 +276,8 @@ def fetch_data(data_type, output_dir, delay=0.5, num_threads=4, max_pages=None, 
         num_threads (int): Number of worker threads
         max_pages (int, optional): Maximum number of pages to fetch (for testing)
         start_page (int): Page number to start fetching from (default: 0)
+        max_retries (int): Maximum number of retry attempts for failed requests
+        backoff_delay (float): Initial delay in seconds between retries
     """
     global shutdown_requested
     print(f"Fetching {data_type} data using {num_threads} threads starting from page {start_page}...")
@@ -270,9 +289,14 @@ def fetch_data(data_type, output_dir, delay=0.5, num_threads=4, max_pages=None, 
     
     # First, do a quick check to estimate total pages by fetching page 0
     print("Estimating total pages...")
-    test_data = fetch_json_from_url(get_api_url(data_type, limit=100, page=0), headers)
-    if not test_data:
+    test_data = fetch_json_from_url(get_api_url(data_type, limit=100, page=0), headers, max_retries, backoff_delay)
+    if test_data is None:
         print("Failed to fetch initial page. Aborting.")
+        return
+    
+    # Validate the test response structure
+    if not isinstance(test_data, dict) or 'total' not in test_data:
+        print("Invalid response structure from initial page. Cannot estimate total pages. Aborting.")
         return
     
     # Check for early shutdown
@@ -313,7 +337,7 @@ def fetch_data(data_type, output_dir, delay=0.5, num_threads=4, max_pages=None, 
                     print("Shutdown requested, not submitting more jobs")
                     break
                 page = start_page + i
-                future = executor.submit(fetch_and_save_page, page, pages_dir, today, headers, data_type, delay)
+                future = executor.submit(fetch_and_save_page, page, pages_dir, today, headers, data_type, delay, max_retries, backoff_delay)
                 futures[future] = page
             
             # Process completed jobs
@@ -377,14 +401,18 @@ def fetch_data(data_type, output_dir, delay=0.5, num_threads=4, max_pages=None, 
             print(f"  --delay {delay}")
         if num_threads != 4:
             print(f"  --threads {num_threads}")
+        if max_retries != 3:
+            print(f"  --max-retries {max_retries}")
+        if backoff_delay != 1.0:
+            print(f"  --backoff-delay {backoff_delay}")
         print("\nAll completed downloads have been saved successfully.")
 
-def fetch_companies_data(output_dir, delay=0.5, num_threads=4, max_pages=None, start_page=0):
+def fetch_companies_data(output_dir, delay=0.5, num_threads=4, max_pages=None, start_page=0, max_retries=3, backoff_delay=1.0):
     """
     Fetch companies data from the API with pagination using multiple threads.
     (Deprecated - use fetch_data instead)
     """
-    return fetch_data("companies", output_dir, delay, num_threads, max_pages, start_page)
+    return fetch_data("companies", output_dir, delay, num_threads, max_pages, start_page, max_retries, backoff_delay)
 
 def main():
     parser = argparse.ArgumentParser(description='Fetch data from MyCareersFuture API')
@@ -400,11 +428,16 @@ def main():
                        help='Maximum number of pages to fetch (for testing)')
     parser.add_argument('--start-page', type=int, default=0,
                        help='Page number to start fetching from (default: 0)')
+    parser.add_argument('--max-retries', type=int, default=3,
+                       help='Maximum number of retry attempts for failed requests (default: 3)')
+    parser.add_argument('--backoff-delay', type=float, default=1.0,
+                       help='Initial delay in seconds between retries, doubles each retry (default: 1.0)')
     
     args = parser.parse_args()
     
     # Use the generic fetch_data function for all data types
-    fetch_data(args.data_type, args.output_dir, args.delay, args.threads, args.max_pages, args.start_page)
+    fetch_data(args.data_type, args.output_dir, args.delay, args.threads, 
+               args.max_pages, args.start_page, args.max_retries, args.backoff_delay)
 
 if __name__ == "__main__":
     setup_signal_handlers()
