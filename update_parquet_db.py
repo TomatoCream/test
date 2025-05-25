@@ -356,8 +356,8 @@ def save_parquet_file(df: pd.DataFrame, output_path: str, table_name: str):
         raise
 
 def update_skills_database(previous_date: str, next_date: str, raw_data_dir: str, db_data_dir: str):
-    """Main function to update the skills and districts parquet database."""
-    logger.info(f"Starting skills and districts database update from {previous_date} to {next_date}")
+    """Main function to update the parquet database with new job data including skills, companies, districts, position levels, employment types, status, flexible work arrangements, and categories."""
+    logger.info(f"Starting database update from {previous_date} to {next_date}")
     
     # Setup directories
     next_date_dir = setup_directories(db_data_dir, next_date)
@@ -399,7 +399,52 @@ def update_skills_database(previous_date: str, next_date: str, raw_data_dir: str
     districts_output_path = os.path.join(next_date_dir, f"{next_date}_districts.parquet")
     save_parquet_file(districts_df, districts_output_path, "districts")
     
-    logger.info("Skills and districts database update completed successfully!")
+    # Process Position Levels Data
+    logger.info("Processing position levels data...")
+    previous_position_levels_df = read_previous_parquet(db_data_dir, previous_date, "position_levels")
+    position_levels_df = process_position_levels_data(jobs, previous_position_levels_df)
+    
+    # Save position levels data
+    position_levels_output_path = os.path.join(next_date_dir, f"{next_date}_position_levels.parquet")
+    save_parquet_file(position_levels_df, position_levels_output_path, "position_levels")
+    
+    # Process Employment Types Data
+    logger.info("Processing employment types data...")
+    previous_employment_types_df = read_previous_parquet(db_data_dir, previous_date, "employment_types")
+    employment_types_df = process_employment_types_data(jobs, previous_employment_types_df)
+    
+    # Save employment types data
+    employment_types_output_path = os.path.join(next_date_dir, f"{next_date}_employment_types.parquet")
+    save_parquet_file(employment_types_df, employment_types_output_path, "employment_types")
+    
+    # Process Status Data
+    logger.info("Processing status data...")
+    previous_status_df = read_previous_parquet(db_data_dir, previous_date, "status")
+    status_df = process_status_data(jobs, previous_status_df)
+    
+    # Save status data
+    status_output_path = os.path.join(next_date_dir, f"{next_date}_status.parquet")
+    save_parquet_file(status_df, status_output_path, "status")
+    
+    # Process Flexible Work Arrangements Data
+    logger.info("Processing flexible work arrangements data...")
+    previous_flexible_work_arrangements_df = read_previous_parquet(db_data_dir, previous_date, "flexible_work_arrangements")
+    flexible_work_arrangements_df = process_flexible_work_arrangements_data(jobs, previous_flexible_work_arrangements_df)
+    
+    # Save flexible work arrangements data
+    flexible_work_arrangements_output_path = os.path.join(next_date_dir, f"{next_date}_flexible_work_arrangements.parquet")
+    save_parquet_file(flexible_work_arrangements_df, flexible_work_arrangements_output_path, "flexible_work_arrangements")
+    
+    # Process Categories Data
+    logger.info("Processing categories data...")
+    previous_categories_df = read_previous_parquet(db_data_dir, previous_date, "categories")
+    categories_df = process_categories_data(jobs, previous_categories_df)
+    
+    # Save categories data
+    categories_output_path = os.path.join(next_date_dir, f"{next_date}_categories.parquet")
+    save_parquet_file(categories_df, categories_output_path, "categories")
+    
+    logger.info("Database update completed successfully!")
 
 def process_districts_data(jobs: List[Job], previous_districts_df: Optional[pd.DataFrame]) -> pd.DataFrame:
     """Process districts data from jobs, update districts DataFrame using the original district ID."""
@@ -477,8 +522,387 @@ def process_districts_data(jobs: List[Job], previous_districts_df: Optional[pd.D
 
     return districts_df
 
+def process_position_levels_data(jobs: List[Job], previous_position_levels_df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Process position levels data from jobs, update position levels DataFrame using the original ID."""
+
+    new_position_levels_added_count = 0
+    updated_position_levels_count = 0
+
+    if previous_position_levels_df is not None and not previous_position_levels_df.empty:
+        if previous_position_levels_df.index.names != [None]:
+            position_levels_df = previous_position_levels_df.reset_index()
+        else:
+            position_levels_df = previous_position_levels_df.copy()
+
+        if 'id' not in position_levels_df.columns:
+            logger.warning("Previous position levels DataFrame is missing 'id' column. Starting fresh.")
+            position_levels_df = pd.DataFrame(columns=['id', 'position'])
+        else:
+            # Ensure 'id' is integer type for proper lookups
+            position_levels_df['id'] = position_levels_df['id'].astype(int)
+    else:
+        position_levels_df = pd.DataFrame(columns=['id', 'position'])
+
+    # Collect all position levels from jobs into a single DataFrame
+    all_position_levels_data = []
+    for job in jobs:
+        if job.position_levels:
+            for position_level_obj in job.position_levels:
+                position_level_data = position_level_obj.model_dump()
+                all_position_levels_data.append(position_level_data)
+
+    if not all_position_levels_data:
+        logger.info("No position levels found in jobs data")
+        return position_levels_df
+
+    # Create DataFrame from all position levels
+    new_position_levels_df = pd.DataFrame(all_position_levels_data)
+    
+    if position_levels_df.empty:
+        # No previous data, use all new position levels
+        new_position_levels_added_count = len(new_position_levels_df)
+        position_levels_df = new_position_levels_df
+    else:
+        # Merge with existing position levels data
+        # First, identify which position levels are new vs existing based on id
+        existing_ids = set(position_levels_df['id'])
+        new_position_levels_mask = ~new_position_levels_df['id'].isin(existing_ids)
+        
+        # Handle existing position levels - update them
+        existing_position_levels = new_position_levels_df[~new_position_levels_mask]
+        if not existing_position_levels.empty:
+            # Update existing position levels by merging on id
+            position_levels_df = position_levels_df.set_index('id')
+            existing_position_levels = existing_position_levels.set_index('id')
+            
+            # Update existing records
+            position_levels_df.update(existing_position_levels)
+            position_levels_df = position_levels_df.reset_index()
+            updated_position_levels_count = len(existing_position_levels)
+        
+        # Handle new position levels - add them directly
+        new_position_levels = new_position_levels_df[new_position_levels_mask]
+        if not new_position_levels.empty:
+            position_levels_df = pd.concat([position_levels_df, new_position_levels], ignore_index=True)
+            new_position_levels_added_count = len(new_position_levels)
+
+    logger.info(f"Processed position levels: {len(position_levels_df)} total position levels ({new_position_levels_added_count} new, {updated_position_levels_count} updated)")
+
+    if not position_levels_df.empty:
+        if position_levels_df['id'].duplicated().any():
+            logger.warning("Duplicate ids found in position levels data. Rectifying...")
+            position_levels_df = position_levels_df.drop_duplicates(subset=['id'], keep='last')
+
+        position_levels_df = position_levels_df.sort_values(by=['id'])
+        position_levels_df = position_levels_df.set_index('id')
+
+    return position_levels_df
+
+def process_employment_types_data(jobs: List[Job], previous_employment_types_df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Process employment types data from jobs, update employment types DataFrame using the original ID."""
+
+    new_employment_types_added_count = 0
+    updated_employment_types_count = 0
+
+    if previous_employment_types_df is not None and not previous_employment_types_df.empty:
+        if previous_employment_types_df.index.names != [None]:
+            employment_types_df = previous_employment_types_df.reset_index()
+        else:
+            employment_types_df = previous_employment_types_df.copy()
+
+        if 'id' not in employment_types_df.columns:
+            logger.warning("Previous employment types DataFrame is missing 'id' column. Starting fresh.")
+            employment_types_df = pd.DataFrame(columns=['id', 'employment_type'])
+        else:
+            # Ensure 'id' is integer type for proper lookups
+            employment_types_df['id'] = employment_types_df['id'].astype(int)
+    else:
+        employment_types_df = pd.DataFrame(columns=['id', 'employment_type'])
+
+    # Collect all employment types from jobs into a single DataFrame
+    all_employment_types_data = []
+    for job in jobs:
+        if job.employment_types:
+            for employment_type_obj in job.employment_types:
+                employment_type_data = employment_type_obj.model_dump()
+                all_employment_types_data.append(employment_type_data)
+
+    if not all_employment_types_data:
+        logger.info("No employment types found in jobs data")
+        return employment_types_df
+
+    # Create DataFrame from all employment types
+    new_employment_types_df = pd.DataFrame(all_employment_types_data)
+    
+    if employment_types_df.empty:
+        # No previous data, use all new employment types
+        new_employment_types_added_count = len(new_employment_types_df)
+        employment_types_df = new_employment_types_df
+    else:
+        # Merge with existing employment types data
+        # First, identify which employment types are new vs existing based on id
+        existing_ids = set(employment_types_df['id'])
+        new_employment_types_mask = ~new_employment_types_df['id'].isin(existing_ids)
+        
+        # Handle existing employment types - update them
+        existing_employment_types = new_employment_types_df[~new_employment_types_mask]
+        if not existing_employment_types.empty:
+            # Update existing employment types by merging on id
+            employment_types_df = employment_types_df.set_index('id')
+            existing_employment_types = existing_employment_types.set_index('id')
+            
+            # Update existing records
+            employment_types_df.update(existing_employment_types)
+            employment_types_df = employment_types_df.reset_index()
+            updated_employment_types_count = len(existing_employment_types)
+        
+        # Handle new employment types - add them directly
+        new_employment_types = new_employment_types_df[new_employment_types_mask]
+        if not new_employment_types.empty:
+            employment_types_df = pd.concat([employment_types_df, new_employment_types], ignore_index=True)
+            new_employment_types_added_count = len(new_employment_types)
+
+    logger.info(f"Processed employment types: {len(employment_types_df)} total employment types ({new_employment_types_added_count} new, {updated_employment_types_count} updated)")
+
+    if not employment_types_df.empty:
+        if employment_types_df['id'].duplicated().any():
+            logger.warning("Duplicate ids found in employment types data. Rectifying...")
+            employment_types_df = employment_types_df.drop_duplicates(subset=['id'], keep='last')
+
+        employment_types_df = employment_types_df.sort_values(by=['id'])
+        employment_types_df = employment_types_df.set_index('id')
+
+    return employment_types_df
+
+def process_status_data(jobs: List[Job], previous_status_df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Process status data from jobs, update status DataFrame using the original ID."""
+
+    new_status_added_count = 0
+    updated_status_count = 0
+
+    if previous_status_df is not None and not previous_status_df.empty:
+        if previous_status_df.index.names != [None]:
+            status_df = previous_status_df.reset_index()
+        else:
+            status_df = previous_status_df.copy()
+
+        if 'id' not in status_df.columns:
+            logger.warning("Previous status DataFrame is missing 'id' column. Starting fresh.")
+            status_df = pd.DataFrame(columns=['id', 'job_status'])
+        else:
+            # Ensure 'id' is integer type for proper lookups (note: status id might be string)
+            pass  # Don't convert status id as it might be string
+    else:
+        status_df = pd.DataFrame(columns=['id', 'job_status'])
+
+    # Collect all status from jobs into a single DataFrame
+    all_status_data = []
+    for job in jobs:
+        if job.status:
+            status_data = job.status.model_dump()
+            all_status_data.append(status_data)
+
+    if not all_status_data:
+        logger.info("No status found in jobs data")
+        return status_df
+
+    # Create DataFrame from all status
+    new_status_df = pd.DataFrame(all_status_data)
+    
+    if status_df.empty:
+        # No previous data, use all new status
+        new_status_added_count = len(new_status_df)
+        status_df = new_status_df
+    else:
+        # Merge with existing status data
+        # First, identify which status are new vs existing based on id
+        existing_ids = set(status_df['id'])
+        new_status_mask = ~new_status_df['id'].isin(existing_ids)
+        
+        # Handle existing status - update them
+        existing_status = new_status_df[~new_status_mask]
+        if not existing_status.empty:
+            # Update existing status by merging on id
+            status_df = status_df.set_index('id')
+            existing_status = existing_status.set_index('id')
+            
+            # Update existing records
+            status_df.update(existing_status)
+            status_df = status_df.reset_index()
+            updated_status_count = len(existing_status)
+        
+        # Handle new status - add them directly
+        new_status = new_status_df[new_status_mask]
+        if not new_status.empty:
+            status_df = pd.concat([status_df, new_status], ignore_index=True)
+            new_status_added_count = len(new_status)
+
+    logger.info(f"Processed status: {len(status_df)} total status ({new_status_added_count} new, {updated_status_count} updated)")
+
+    if not status_df.empty:
+        if status_df['id'].duplicated().any():
+            logger.warning("Duplicate ids found in status data. Rectifying...")
+            status_df = status_df.drop_duplicates(subset=['id'], keep='last')
+
+        status_df = status_df.sort_values(by=['id'])
+        status_df = status_df.set_index('id')
+
+    return status_df
+
+def process_flexible_work_arrangements_data(jobs: List[Job], previous_flexible_work_arrangements_df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Process flexible work arrangements data from jobs, update flexible work arrangements DataFrame using the original ID."""
+
+    new_flexible_work_arrangements_added_count = 0
+    updated_flexible_work_arrangements_count = 0
+
+    if previous_flexible_work_arrangements_df is not None and not previous_flexible_work_arrangements_df.empty:
+        if previous_flexible_work_arrangements_df.index.names != [None]:
+            flexible_work_arrangements_df = previous_flexible_work_arrangements_df.reset_index()
+        else:
+            flexible_work_arrangements_df = previous_flexible_work_arrangements_df.copy()
+
+        if 'id' not in flexible_work_arrangements_df.columns:
+            logger.warning("Previous flexible work arrangements DataFrame is missing 'id' column. Starting fresh.")
+            flexible_work_arrangements_df = pd.DataFrame(columns=['id', 'flexible_work_arrangement'])
+        else:
+            # Ensure 'id' is integer type for proper lookups
+            flexible_work_arrangements_df['id'] = flexible_work_arrangements_df['id'].astype(int)
+    else:
+        flexible_work_arrangements_df = pd.DataFrame(columns=['id', 'flexible_work_arrangement'])
+
+    # Collect all flexible work arrangements from jobs into a single DataFrame
+    all_flexible_work_arrangements_data = []
+    for job in jobs:
+        if job.flexible_work_arrangements:
+            for flexible_work_arrangement_obj in job.flexible_work_arrangements:
+                flexible_work_arrangement_data = flexible_work_arrangement_obj.model_dump()
+                all_flexible_work_arrangements_data.append(flexible_work_arrangement_data)
+
+    if not all_flexible_work_arrangements_data:
+        logger.info("No flexible work arrangements found in jobs data")
+        return flexible_work_arrangements_df
+
+    # Create DataFrame from all flexible work arrangements
+    new_flexible_work_arrangements_df = pd.DataFrame(all_flexible_work_arrangements_data)
+    
+    if flexible_work_arrangements_df.empty:
+        # No previous data, use all new flexible work arrangements
+        new_flexible_work_arrangements_added_count = len(new_flexible_work_arrangements_df)
+        flexible_work_arrangements_df = new_flexible_work_arrangements_df
+    else:
+        # Merge with existing flexible work arrangements data
+        # First, identify which flexible work arrangements are new vs existing based on id
+        existing_ids = set(flexible_work_arrangements_df['id'])
+        new_flexible_work_arrangements_mask = ~new_flexible_work_arrangements_df['id'].isin(existing_ids)
+        
+        # Handle existing flexible work arrangements - update them
+        existing_flexible_work_arrangements = new_flexible_work_arrangements_df[~new_flexible_work_arrangements_mask]
+        if not existing_flexible_work_arrangements.empty:
+            # Update existing flexible work arrangements by merging on id
+            flexible_work_arrangements_df = flexible_work_arrangements_df.set_index('id')
+            existing_flexible_work_arrangements = existing_flexible_work_arrangements.set_index('id')
+            
+            # Update existing records
+            flexible_work_arrangements_df.update(existing_flexible_work_arrangements)
+            flexible_work_arrangements_df = flexible_work_arrangements_df.reset_index()
+            updated_flexible_work_arrangements_count = len(existing_flexible_work_arrangements)
+        
+        # Handle new flexible work arrangements - add them directly
+        new_flexible_work_arrangements = new_flexible_work_arrangements_df[new_flexible_work_arrangements_mask]
+        if not new_flexible_work_arrangements.empty:
+            flexible_work_arrangements_df = pd.concat([flexible_work_arrangements_df, new_flexible_work_arrangements], ignore_index=True)
+            new_flexible_work_arrangements_added_count = len(new_flexible_work_arrangements)
+
+    logger.info(f"Processed flexible work arrangements: {len(flexible_work_arrangements_df)} total flexible work arrangements ({new_flexible_work_arrangements_added_count} new, {updated_flexible_work_arrangements_count} updated)")
+
+    if not flexible_work_arrangements_df.empty:
+        if flexible_work_arrangements_df['id'].duplicated().any():
+            logger.warning("Duplicate ids found in flexible work arrangements data. Rectifying...")
+            flexible_work_arrangements_df = flexible_work_arrangements_df.drop_duplicates(subset=['id'], keep='last')
+
+        flexible_work_arrangements_df = flexible_work_arrangements_df.sort_values(by=['id'])
+        flexible_work_arrangements_df = flexible_work_arrangements_df.set_index('id')
+
+    return flexible_work_arrangements_df
+
+def process_categories_data(jobs: List[Job], previous_categories_df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Process categories data from jobs, update categories DataFrame using the original ID."""
+
+    new_categories_added_count = 0
+    updated_categories_count = 0
+
+    if previous_categories_df is not None and not previous_categories_df.empty:
+        if previous_categories_df.index.names != [None]:
+            categories_df = previous_categories_df.reset_index()
+        else:
+            categories_df = previous_categories_df.copy()
+
+        if 'id' not in categories_df.columns:
+            logger.warning("Previous categories DataFrame is missing 'id' column. Starting fresh.")
+            categories_df = pd.DataFrame(columns=['id', 'category'])
+        else:
+            # Ensure 'id' is integer type for proper lookups
+            categories_df['id'] = categories_df['id'].astype(int)
+    else:
+        categories_df = pd.DataFrame(columns=['id', 'category'])
+
+    # Collect all categories from jobs into a single DataFrame
+    all_categories_data = []
+    for job in jobs:
+        if job.categories:
+            for category_obj in job.categories:
+                category_data = category_obj.model_dump()
+                all_categories_data.append(category_data)
+
+    if not all_categories_data:
+        logger.info("No categories found in jobs data")
+        return categories_df
+
+    # Create DataFrame from all categories
+    new_categories_df = pd.DataFrame(all_categories_data)
+    
+    if categories_df.empty:
+        # No previous data, use all new categories
+        new_categories_added_count = len(new_categories_df)
+        categories_df = new_categories_df
+    else:
+        # Merge with existing categories data
+        # First, identify which categories are new vs existing based on id
+        existing_ids = set(categories_df['id'])
+        new_categories_mask = ~new_categories_df['id'].isin(existing_ids)
+        
+        # Handle existing categories - update them
+        existing_categories = new_categories_df[~new_categories_mask]
+        if not existing_categories.empty:
+            # Update existing categories by merging on id
+            categories_df = categories_df.set_index('id')
+            existing_categories = existing_categories.set_index('id')
+            
+            # Update existing records
+            categories_df.update(existing_categories)
+            categories_df = categories_df.reset_index()
+            updated_categories_count = len(existing_categories)
+        
+        # Handle new categories - add them directly
+        new_categories = new_categories_df[new_categories_mask]
+        if not new_categories.empty:
+            categories_df = pd.concat([categories_df, new_categories], ignore_index=True)
+            new_categories_added_count = len(new_categories)
+
+    logger.info(f"Processed categories: {len(categories_df)} total categories ({new_categories_added_count} new, {updated_categories_count} updated)")
+
+    if not categories_df.empty:
+        if categories_df['id'].duplicated().any():
+            logger.warning("Duplicate ids found in categories data. Rectifying...")
+            categories_df = categories_df.drop_duplicates(subset=['id'], keep='last')
+
+        categories_df = categories_df.sort_values(by=['id'])
+        categories_df = categories_df.set_index('id')
+
+    return categories_df
+
 def main():
-    parser = argparse.ArgumentParser(description='Update skills parquet database with new job data')
+    parser = argparse.ArgumentParser(description='Update parquet database with new job data including skills, companies, districts, position levels, employment types, status, flexible work arrangements, and categories')
     parser.add_argument('previous_date', type=str, help='Previous date in YYYYMMDD format')
     parser.add_argument('next_date', type=str, help='Next date in YYYYMMDD format')
     parser.add_argument('raw_data_dir', type=str, default='raw_data', help='Directory containing raw data')
