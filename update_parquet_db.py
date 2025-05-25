@@ -106,82 +106,84 @@ def process_skills_data(jobs: List[Job], previous_skills_df: Optional[pd.DataFra
         if 'uuid' not in skills_df.columns or 'id' not in skills_df.columns:
             logger.warning("Previous skills DataFrame is missing 'uuid' or 'id' columns. Starting fresh.")
             skills_df = pd.DataFrame(columns=['id', 'uuid', 'skill', 'confidence'])
-            skills_lookup = {}
             next_id = 0
         else:
             # Ensure 'id' is integer type for proper max() calculation and lookups
             skills_df['id'] = skills_df['id'].astype(int)
-            skills_lookup = {row['uuid']: int(row['id']) for _, row in skills_df.iterrows()}
             next_id = (skills_df['id'].max() + 1) if not skills_df.empty else 0
     else:
         skills_df = pd.DataFrame(columns=['id', 'uuid', 'skill', 'confidence'])
-        skills_lookup = {}
         next_id = 0
 
-    new_skill_records = []
-
-    for job_idx, job in enumerate(jobs): # Iterate over jobs to process skills and collect IDs
+    # Collect all skills from jobs into a single DataFrame
+    all_skills_data = []
+    for job in jobs:
         if job.skills:
-            # Iterate over a copy or the original list of skill objects.
-            # job.skills itself will not be modified in this first loop.
-            current_job_skill_objects = job.skills 
-
-            for skill_obj in current_job_skill_objects:  # skill_obj is of type schema_v2.Skills
+            for skill_obj in job.skills:
                 skill_data = skill_obj.model_dump()
+                all_skills_data.append(skill_data)
 
-                if skill_obj.uuid in skills_lookup:
-                    # Existing skill, update it in skills_df
-                    existing_id = skills_lookup[skill_obj.uuid]
-                    
-                    mask = skills_df['id'] == existing_id
-                    
-                    for col, value in skill_data.items():
-                        if col in skills_df.columns:
-                             skills_df.loc[mask, col] = value
-                    
-                    updated_skills_count +=1
-                else:
-                    # New skill
-                    skill_data['id'] = next_id
-                    new_skill_records.append(skill_data)
-                    skills_lookup[skill_obj.uuid] = next_id
-                    next_id += 1
-                    new_skills_added_count += 1
+    if not all_skills_data:
+        logger.info("No skills found in jobs data")
+        return skills_df
 
-    if new_skill_records:
-        new_skills_df = pd.DataFrame(new_skill_records)
-        skills_df = pd.concat([skills_df, new_skills_df], ignore_index=True)
+    # Create DataFrame from all skills
+    new_skills_df = pd.DataFrame(all_skills_data)
+    
+    if skills_df.empty:
+        # No previous data, assign IDs to all skills
+        new_skills_df['id'] = range(len(new_skills_df))
+        new_skills_added_count = len(new_skills_df)
+        skills_df = new_skills_df
+    else:
+        # Merge with existing skills data
+        # First, identify which skills are new vs existing
+        existing_uuids = set(skills_df['uuid'])
+        new_skills_mask = ~new_skills_df['uuid'].isin(existing_uuids)
+        
+        # Handle existing skills - update them
+        existing_skills = new_skills_df[~new_skills_mask]
+        if not existing_skills.empty:
+            # Update existing skills by merging on uuid
+            skills_df = skills_df.set_index('uuid')
+            existing_skills = existing_skills.set_index('uuid')
+            
+            # Update existing records
+            skills_df.update(existing_skills)
+            skills_df = skills_df.reset_index()
+            updated_skills_count = len(existing_skills)
+        
+        # Handle new skills - assign new IDs
+        new_skills = new_skills_df[new_skills_mask]
+        if not new_skills.empty:
+            new_skills = new_skills.copy()
+            new_skills['id'] = range(next_id, next_id + len(new_skills))
+            skills_df = pd.concat([skills_df, new_skills], ignore_index=True)
+            new_skills_added_count = len(new_skills)
 
     logger.info(f"Processed skills: {len(skills_df)} total skills ({new_skills_added_count} new, {updated_skills_count} updated)")
 
     if not skills_df.empty:
         if skills_df['id'].duplicated().any():
             logger.warning("Duplicate IDs found in skills data. Rectifying...")
-            # Potentially complex to fix if actual duplicates are generated.
-            # For now, we assume IDs should be unique due to next_id logic.
-            # If duplicates arise from previous_df not having unique IDs, that's a deeper issue.
             skills_df = skills_df.drop_duplicates(subset=['id'], keep='last')
-
 
         if skills_df['uuid'].duplicated().any():
             logger.warning("Duplicate UUIDs found in skills data. Rectifying...")
-            # This implies a skill UUID appeared multiple times in the input, or was already in skills_df with a different ID.
-            # The logic should handle this by updating the first instance.
             skills_df = skills_df.drop_duplicates(subset=['uuid'], keep='last')
-
 
         skills_df = skills_df.sort_values(by=['id', 'uuid'])
         skills_df = skills_df.set_index(['id', 'uuid'])
 
     # Now map skills in jobs to skill IDs to save space
-    for job in jobs:
-        if job.skills:
-            skill_ids = []
-            for skill_obj in job.skills:
-                if skill_obj.uuid in skills_lookup:
-                    skill_ids.append(skills_lookup[skill_obj.uuid])
-            # Replace the skills objects with just the list of IDs
-            job.skills = skill_ids
+    # for job in jobs:
+    #     if job.skills:
+    #         skill_ids = []
+    #         for skill_obj in job.skills:
+    #             if skill_obj.uuid in skills_lookup:
+    #                 skill_ids.append(skills_lookup[skill_obj.uuid])
+    #         # Replace the skills objects with just the list of IDs
+    #         job.skills = skill_ids
 
     return skills_df
 
@@ -354,8 +356,8 @@ def save_parquet_file(df: pd.DataFrame, output_path: str, table_name: str):
         raise
 
 def update_skills_database(previous_date: str, next_date: str, raw_data_dir: str, db_data_dir: str):
-    """Main function to update the skills parquet database."""
-    logger.info(f"Starting skills database update from {previous_date} to {next_date}")
+    """Main function to update the skills and districts parquet database."""
+    logger.info(f"Starting skills and districts database update from {previous_date} to {next_date}")
     
     # Setup directories
     next_date_dir = setup_directories(db_data_dir, next_date)
@@ -388,7 +390,92 @@ def update_skills_database(previous_date: str, next_date: str, raw_data_dir: str
     skills_output_path = os.path.join(next_date_dir, f"{next_date}_skills.parquet")
     save_parquet_file(skills_df, skills_output_path, "skills")
     
-    logger.info("Skills database update completed successfully!")
+    # Process Districts Data
+    logger.info("Processing districts data...")
+    previous_districts_df = read_previous_parquet(db_data_dir, previous_date, "districts")
+    districts_df = process_districts_data(jobs, previous_districts_df)
+    
+    # Save districts data
+    districts_output_path = os.path.join(next_date_dir, f"{next_date}_districts.parquet")
+    save_parquet_file(districts_df, districts_output_path, "districts")
+    
+    logger.info("Skills and districts database update completed successfully!")
+
+def process_districts_data(jobs: List[Job], previous_districts_df: Optional[pd.DataFrame]) -> pd.DataFrame:
+    """Process districts data from jobs, update districts DataFrame using the original district ID."""
+
+    new_districts_added_count = 0
+    updated_districts_count = 0
+
+    if previous_districts_df is not None and not previous_districts_df.empty:
+        if previous_districts_df.index.names != [None]:
+            districts_df = previous_districts_df.reset_index()
+        else:
+            districts_df = previous_districts_df.copy()
+
+        if 'id' not in districts_df.columns:
+            logger.warning("Previous districts DataFrame is missing 'id' column. Starting fresh.")
+            districts_df = pd.DataFrame(columns=['id', 'sectors', 'region_id', 'location', 'region'])
+        else:
+            # Ensure 'id' is integer type for proper lookups
+            districts_df['id'] = districts_df['id'].astype(int)
+    else:
+        districts_df = pd.DataFrame(columns=['id', 'sectors', 'region_id', 'location', 'region'])
+
+    # Collect all districts from jobs into a single DataFrame
+    all_districts_data = []
+    for job in jobs:
+        if job.address and job.address.districts:
+            for district_obj in job.address.districts:
+                district_data = district_obj.model_dump()
+                all_districts_data.append(district_data)
+
+    if not all_districts_data:
+        logger.info("No districts found in jobs data")
+        return districts_df
+
+    # Create DataFrame from all districts
+    new_districts_df = pd.DataFrame(all_districts_data)
+    
+    if districts_df.empty:
+        # No previous data, use all new districts
+        new_districts_added_count = len(new_districts_df)
+        districts_df = new_districts_df
+    else:
+        # Merge with existing districts data
+        # First, identify which districts are new vs existing based on id
+        existing_ids = set(districts_df['id'])
+        new_districts_mask = ~new_districts_df['id'].isin(existing_ids)
+        
+        # Handle existing districts - update them
+        existing_districts = new_districts_df[~new_districts_mask]
+        if not existing_districts.empty:
+            # Update existing districts by merging on id
+            districts_df = districts_df.set_index('id')
+            existing_districts = existing_districts.set_index('id')
+            
+            # Update existing records
+            districts_df.update(existing_districts)
+            districts_df = districts_df.reset_index()
+            updated_districts_count = len(existing_districts)
+        
+        # Handle new districts - add them directly
+        new_districts = new_districts_df[new_districts_mask]
+        if not new_districts.empty:
+            districts_df = pd.concat([districts_df, new_districts], ignore_index=True)
+            new_districts_added_count = len(new_districts)
+
+    logger.info(f"Processed districts: {len(districts_df)} total districts ({new_districts_added_count} new, {updated_districts_count} updated)")
+
+    if not districts_df.empty:
+        if districts_df['id'].duplicated().any():
+            logger.warning("Duplicate ids found in districts data. Rectifying...")
+            districts_df = districts_df.drop_duplicates(subset=['id'], keep='last')
+
+        districts_df = districts_df.sort_values(by=['id'])
+        districts_df = districts_df.set_index('id')
+
+    return districts_df
 
 def main():
     parser = argparse.ArgumentParser(description='Update skills parquet database with new job data')
