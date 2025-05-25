@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import requests
-import orjson as json
+import orjson
 import os
 from datetime import datetime
 import time
@@ -68,11 +68,11 @@ def fetch_json_from_url(url, headers=None):
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
-        return response.json()
+        return orjson.loads(response.content)
     except requests.exceptions.RequestException as e:
         print(f"Error fetching URL {url}: {e}")
         return {}
-    except json.JSONDecodeError as e:
+    except orjson.JSONDecodeError as e:
         print(f"Error parsing JSON from URL {url}: {e}")
         return {}
 
@@ -127,12 +127,12 @@ def fetch_and_save_page(page, pages_dir, today, headers, data_type, delay=0.5):
     if os.path.exists(filepath):
         try:
             # Try to read existing file to get result count
-            with open(filepath, 'r', encoding='utf-8') as f:
-                existing_data = json.load(f)
+            with open(filepath, 'rb') as f:
+                existing_data = orjson.loads(f.read())
             num_results = len(existing_data.get('results', []))
             print(f"[{thread_id}] Page {page} already exists, skipping ({num_results} results)")
             return page, True, num_results
-        except (json.JSONDecodeError, Exception) as e:
+        except (orjson.JSONDecodeError, Exception) as e:
             print(f"[{thread_id}] Existing file {filename} is corrupted, re-downloading: {e}")
             # File exists but is corrupted, continue with download
     
@@ -164,8 +164,8 @@ def fetch_and_save_page(page, pages_dir, today, headers, data_type, delay=0.5):
     
     # Save the response to file
     try:
-        with open(filepath, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+        with open(filepath, 'wb') as f:
+            f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
         
         num_results = len(data.get('results', []))
         print(f"[{thread_id}] Saved page {page} to {filename} ({num_results} results)")
