@@ -355,6 +355,228 @@ def save_parquet_file(df: pd.DataFrame, output_path: str, table_name: str):
         logger.error(f"Error saving {table_name} parquet file: {e}")
         raise
 
+def process_jobs_data(
+    jobs: List[Job], 
+    previous_jobs_df: Optional[pd.DataFrame],
+    companies_df: pd.DataFrame,
+    skills_df: pd.DataFrame,
+    districts_df: pd.DataFrame,
+    position_levels_df: pd.DataFrame,
+    employment_types_df: pd.DataFrame,
+    status_df: pd.DataFrame,
+    flexible_work_arrangements_df: pd.DataFrame,
+    categories_df: pd.DataFrame
+) -> pd.DataFrame:
+    """
+    Process jobs data, replacing nested objects with their IDs and create/update jobs DataFrame.
+    
+    Args:
+        jobs: List of job objects
+        previous_jobs_df: Previous jobs DataFrame or None
+        companies_df: Companies DataFrame with ID mappings
+        skills_df: Skills DataFrame with ID mappings
+        districts_df: Districts DataFrame with ID mappings
+        position_levels_df: Position levels DataFrame with ID mappings
+        employment_types_df: Employment types DataFrame with ID mappings
+        status_df: Status DataFrame with ID mappings
+        flexible_work_arrangements_df: Flexible work arrangements DataFrame with ID mappings
+        categories_df: Categories DataFrame with ID mappings
+    
+    Returns:
+        Processed jobs DataFrame
+    """
+    new_jobs_count = 0
+    updated_jobs_count = 0
+
+    # Create lookup dictionaries for ID mappings
+    companies_lookup = {}
+    if not companies_df.empty:
+        companies_df_reset = companies_df.reset_index() if companies_df.index.names != [None] else companies_df
+        companies_lookup = {row['uen']: row['id'] for _, row in companies_df_reset.iterrows()}
+
+    skills_lookup = {}
+    if not skills_df.empty:
+        skills_df_reset = skills_df.reset_index() if skills_df.index.names != [None] else skills_df
+        skills_lookup = {row['uuid']: row['id'] for _, row in skills_df_reset.iterrows()}
+
+    districts_lookup = {}
+    if not districts_df.empty:
+        districts_df_reset = districts_df.reset_index() if districts_df.index.names != [None] else districts_df
+        districts_lookup = {row['id']: row['id'] for _, row in districts_df_reset.iterrows()}
+
+    position_levels_lookup = {}
+    if not position_levels_df.empty:
+        position_levels_df_reset = position_levels_df.reset_index() if position_levels_df.index.names != [None] else position_levels_df
+        position_levels_lookup = {row['id']: row['id'] for _, row in position_levels_df_reset.iterrows()}
+
+    employment_types_lookup = {}
+    if not employment_types_df.empty:
+        employment_types_df_reset = employment_types_df.reset_index() if employment_types_df.index.names != [None] else employment_types_df
+        employment_types_lookup = {row['id']: row['id'] for _, row in employment_types_df_reset.iterrows()}
+
+    status_lookup = {}
+    if not status_df.empty:
+        status_df_reset = status_df.reset_index() if status_df.index.names != [None] else status_df
+        status_lookup = {row['id']: row['id'] for _, row in status_df_reset.iterrows()}
+
+    flexible_work_arrangements_lookup = {}
+    if not flexible_work_arrangements_df.empty:
+        fwa_df_reset = flexible_work_arrangements_df.reset_index() if flexible_work_arrangements_df.index.names != [None] else flexible_work_arrangements_df
+        flexible_work_arrangements_lookup = {row['id']: row['id'] for _, row in fwa_df_reset.iterrows()}
+
+    categories_lookup = {}
+    if not categories_df.empty:
+        categories_df_reset = categories_df.reset_index() if categories_df.index.names != [None] else categories_df
+        categories_lookup = {row['id']: row['id'] for _, row in categories_df_reset.iterrows()}
+
+    # Initialize or load previous jobs data
+    if previous_jobs_df is not None and not previous_jobs_df.empty:
+        if previous_jobs_df.index.names != [None]:
+            jobs_df = previous_jobs_df.reset_index()
+        else:
+            jobs_df = previous_jobs_df.copy()
+        
+        if 'uuid' not in jobs_df.columns:
+            logger.warning("Previous jobs DataFrame is missing 'uuid' column. Starting fresh.")
+            jobs_df = pd.DataFrame()
+        else:
+            # Create lookup for existing jobs
+            existing_job_uuids = set(jobs_df['uuid'])
+    else:
+        jobs_df = pd.DataFrame()
+        existing_job_uuids = set()
+
+    # Process each job
+    processed_jobs = []
+    for job in jobs:
+        # Convert job to dict
+        job_data = job.model_dump(by_alias=True, exclude_none=True)
+        
+        # Replace nested objects with IDs
+        
+        # Replace hiring company with ID
+        if job.hiring_company and job.hiring_company.uen in companies_lookup:
+            job_data['hiring_company_id'] = companies_lookup[job.hiring_company.uen]
+        else:
+            job_data['hiring_company_id'] = None
+        job_data.pop('hiring_company', None)
+        
+        # Replace posted company with ID
+        if job.posted_company and job.posted_company.uen in companies_lookup:
+            job_data['posted_company_id'] = companies_lookup[job.posted_company.uen]
+        else:
+            job_data['posted_company_id'] = None
+        job_data.pop('posted_company', None)
+        
+        # Replace skills with IDs
+        if job.skills:
+            skill_ids = []
+            for skill_obj in job.skills:
+                if skill_obj.uuid in skills_lookup:
+                    skill_ids.append(skills_lookup[skill_obj.uuid])
+            job_data['skill_ids'] = skill_ids
+        else:
+            job_data['skill_ids'] = []
+        job_data.pop('skills', None)
+        
+        # Replace districts with IDs
+        if job.address and job.address.districts:
+            district_ids = []
+            for district_obj in job.address.districts:
+                if district_obj.id in districts_lookup:
+                    district_ids.append(districts_lookup[district_obj.id])
+            job_data['district_ids'] = district_ids
+            # Keep the rest of address but remove districts
+            if 'address' in job_data:
+                job_data['address'].pop('districts', None)
+        else:
+            job_data['district_ids'] = []
+        
+        # Replace position levels with IDs
+        if job.position_levels:
+            position_level_ids = []
+            for position_level_obj in job.position_levels:
+                if position_level_obj.id in position_levels_lookup:
+                    position_level_ids.append(position_levels_lookup[position_level_obj.id])
+            job_data['position_level_ids'] = position_level_ids
+        else:
+            job_data['position_level_ids'] = []
+        job_data.pop('position_levels', None)
+        
+        # Replace employment types with IDs
+        if job.employment_types:
+            employment_type_ids = []
+            for employment_type_obj in job.employment_types:
+                if employment_type_obj.id in employment_types_lookup:
+                    employment_type_ids.append(employment_types_lookup[employment_type_obj.id])
+            job_data['employment_type_ids'] = employment_type_ids
+        else:
+            job_data['employment_type_ids'] = []
+        job_data.pop('employment_types', None)
+        
+        # Replace status with ID
+        if job.status and job.status.id in status_lookup:
+            job_data['status_id'] = status_lookup[job.status.id]
+        else:
+            job_data['status_id'] = None
+        job_data.pop('status', None)
+        
+        # Replace flexible work arrangements with IDs
+        if job.flexible_work_arrangements:
+            fwa_ids = []
+            for fwa_obj in job.flexible_work_arrangements:
+                if fwa_obj.id in flexible_work_arrangements_lookup:
+                    fwa_ids.append(flexible_work_arrangements_lookup[fwa_obj.id])
+            job_data['flexible_work_arrangement_ids'] = fwa_ids
+        else:
+            job_data['flexible_work_arrangement_ids'] = []
+        job_data.pop('flexible_work_arrangements', None)
+        
+        # Replace categories with IDs
+        if job.categories:
+            category_ids = []
+            for category_obj in job.categories:
+                if category_obj.id in categories_lookup:
+                    category_ids.append(categories_lookup[category_obj.id])
+            job_data['category_ids'] = category_ids
+        else:
+            job_data['category_ids'] = []
+        job_data.pop('categories', None)
+        
+        processed_jobs.append(job_data)
+        
+        # Track if this is a new or updated job
+        if job.uuid in existing_job_uuids:
+            updated_jobs_count += 1
+        else:
+            new_jobs_count += 1
+
+    # Create DataFrame from processed jobs
+    new_jobs_df = pd.DataFrame(processed_jobs)
+    
+    if jobs_df.empty:
+        # No previous data, use all new data
+        jobs_df = new_jobs_df
+    else:
+        # Merge with existing data
+        # Remove existing jobs that are being updated
+        jobs_df = jobs_df[~jobs_df['uuid'].isin(new_jobs_df['uuid'])]
+        # Add all new/updated jobs
+        jobs_df = pd.concat([jobs_df, new_jobs_df], ignore_index=True)
+
+    logger.info(f"Processed jobs: {len(jobs_df)} total jobs ({new_jobs_count} new, {updated_jobs_count} updated)")
+
+    if not jobs_df.empty:
+        # Verify uniqueness and sort
+        if jobs_df['uuid'].duplicated().any():
+            logger.warning("Duplicate UUIDs found in jobs data. Rectifying...")
+            jobs_df = jobs_df.drop_duplicates(subset=['uuid'], keep='last')
+
+        jobs_df = jobs_df.sort_values(by=['uuid'])
+        jobs_df = jobs_df.set_index('uuid')
+
+    return jobs_df
+
 def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_data_dir: str):
     """Main function to update the parquet database with new job data including skills, companies, districts, position levels, employment types, status, flexible work arrangements, and categories."""
     logger.info(f"Starting database update from {previous_date} to {next_date}")
@@ -424,7 +646,8 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
         }
     ]
     
-    # Process all lookup tables using the configuration
+    # Process all lookup tables using the configuration and store results
+    lookup_tables = {}
     for config in lookup_tables_config:
         table_name = config['name']
         extractor_func = config['extractor']
@@ -440,9 +663,32 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
             columns=columns
         )
         
+        # Store the processed DataFrame for later use in jobs processing
+        lookup_tables[table_name] = processed_df
+        
         # Save data
         output_path = os.path.join(next_date_dir, f"{next_date}_{table_name}.parquet")
         save_parquet_file(processed_df, output_path, table_name)
+    
+    # Process Jobs Data (replace nested objects with IDs)
+    logger.info("Processing jobs data...")
+    previous_jobs_df = read_previous_parquet(db_data_dir, previous_date, "jobs")
+    jobs_df = process_jobs_data(
+        jobs=jobs,
+        previous_jobs_df=previous_jobs_df,
+        companies_df=companies_df,
+        skills_df=skills_df,
+        districts_df=lookup_tables['districts'],
+        position_levels_df=lookup_tables['position_levels'],
+        employment_types_df=lookup_tables['employment_types'],
+        status_df=lookup_tables['status'],
+        flexible_work_arrangements_df=lookup_tables['flexible_work_arrangements'],
+        categories_df=lookup_tables['categories']
+    )
+    
+    # Save jobs data
+    jobs_output_path = os.path.join(next_date_dir, f"{next_date}_jobs.parquet")
+    save_parquet_file(jobs_df, jobs_output_path, "jobs")
     
     logger.info("Database update completed successfully!")
 
