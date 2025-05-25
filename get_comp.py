@@ -54,27 +54,95 @@ def get_headers():
         'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36'
     }
 
-def fetch_json_from_url(url, headers=None):
+def fetch_json_from_url(url, headers=None, max_retries=3, backoff_delay=1.0):
     """
-    Fetch JSON data from a URL.
+    Fetch JSON data from a URL with retry logic and exponential backoff.
     
     Args:
         url (str): The URL to fetch data from
         headers (dict, optional): HTTP headers to include in the request
+        max_retries (int): Maximum number of retry attempts (default: 3)
+        backoff_delay (float): Initial delay in seconds between retries (default: 1.0)
     
     Returns:
-        dict: JSON data if successful, empty dict if failed
+        dict: JSON data if successful, None if failed after all retries
     """
-    try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return orjson.loads(response.content)
-    except requests.exceptions.RequestException as e:
-        print(f"Error fetching URL {url}: {e}")
-        return {}
-    except orjson.JSONDecodeError as e:
-        print(f"Error parsing JSON from URL {url}: {e}")
-        return {}
+    for attempt in range(max_retries + 1):  # +1 because first attempt is not a retry
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            
+            # Check if response is empty
+            if not response.content:
+                print(f"Empty response from URL {url}")
+                if attempt < max_retries:
+                    delay = backoff_delay * (2 ** attempt)  # Exponential backoff
+                    print(f"Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{max_retries + 1})")
+                    time.sleep(delay)
+                    continue
+                return None
+                
+            # Parse JSON
+            data = orjson.loads(response.content)
+            
+            # Basic validation - ensure it's a dictionary
+            if not isinstance(data, dict):
+                print(f"Invalid response format from URL {url}: expected dict, got {type(data)}")
+                if attempt < max_retries:
+                    delay = backoff_delay * (2 ** attempt)  # Exponential backoff
+                    print(f"Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{max_retries + 1})")
+                    time.sleep(delay)
+                    continue
+                return None
+                
+            # Success - return the data
+            return data
+            
+        except requests.exceptions.HTTPError as e:
+            status_code = e.response.status_code if e.response else 'Unknown'
+            print(f"HTTP error fetching URL {url}: {e} (Status: {status_code})")
+            
+            # Don't retry on client errors (4xx) except for rate limiting (429)
+            if e.response and 400 <= e.response.status_code < 500 and e.response.status_code != 429:
+                print(f"Client error {status_code} - not retrying")
+                return None
+                
+            if attempt < max_retries:
+                delay = backoff_delay * (2 ** attempt)  # Exponential backoff
+                print(f"Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{max_retries + 1})")
+                time.sleep(delay)
+                continue
+            return None
+            
+        except requests.exceptions.RequestException as e:
+            print(f"Request error fetching URL {url}: {e}")
+            if attempt < max_retries:
+                delay = backoff_delay * (2 ** attempt)  # Exponential backoff
+                print(f"Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{max_retries + 1})")
+                time.sleep(delay)
+                continue
+            return None
+            
+        except orjson.JSONDecodeError as e:
+            print(f"JSON decode error from URL {url}: {e}")
+            if attempt < max_retries:
+                delay = backoff_delay * (2 ** attempt)  # Exponential backoff
+                print(f"Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{max_retries + 1})")
+                time.sleep(delay)
+                continue
+            return None
+            
+        except Exception as e:
+            print(f"Unexpected error fetching URL {url}: {e}")
+            if attempt < max_retries:
+                delay = backoff_delay * (2 ** attempt)  # Exponential backoff
+                print(f"Retrying in {delay:.1f} seconds... (attempt {attempt + 1}/{max_retries + 1})")
+                time.sleep(delay)
+                continue
+            return None
+    
+    # This should never be reached, but just in case
+    return None
 
 def create_directory_structure(output_dir, data_type):
     """Create the directory structure for storing data"""
