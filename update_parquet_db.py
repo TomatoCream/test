@@ -124,21 +124,26 @@ def process_skills_data(jobs_df: pd.DataFrame, previous_skills_df: Optional[pd.D
         skills_df = pd.DataFrame(columns=['id', 'uuid', 'skill', 'confidence'])
         next_id = 0
 
-    # Collect all skills from jobs DataFrame into a single DataFrame
+    # Collect all unique skills from jobs DataFrame (deduplicate by UUID during extraction)
     all_skills_data = []
+    seen_uuids = set()
+    
     for _, job_row in jobs_df.iterrows():
         if 'skills' in job_row and job_row['skills'] is not None:
             skills_list = job_row['skills']
             if isinstance(skills_list, list):
                 for skill_dict in skills_list:
-                    if isinstance(skill_dict, dict):
-                        all_skills_data.append(skill_dict)
+                    if isinstance(skill_dict, dict) and 'uuid' in skill_dict:
+                        skill_uuid = skill_dict['uuid']
+                        if skill_uuid not in seen_uuids:
+                            all_skills_data.append(skill_dict)
+                            seen_uuids.add(skill_uuid)
 
     if not all_skills_data:
         logger.info("No skills found in jobs data")
         return skills_df
 
-    # Create DataFrame from all skills
+    # Create DataFrame from unique skills
     new_skills_df = pd.DataFrame(all_skills_data)
     
     if skills_df.empty:
@@ -147,34 +152,53 @@ def process_skills_data(jobs_df: pd.DataFrame, previous_skills_df: Optional[pd.D
         new_skills_added_count = len(new_skills_df)
         skills_df = new_skills_df
     else:
-        # Merge with existing skills data
-        # First, identify which skills are new vs existing
+        # Process each skill individually to check for actual differences
         existing_uuids = set(skills_df['uuid'])
-        new_skills_mask = ~new_skills_df['uuid'].isin(existing_uuids)
         
-        # Handle existing skills - update them
-        existing_skills = new_skills_df[~new_skills_mask]
-        if not existing_skills.empty:
-            # Update existing skills by merging on uuid
-            skills_df = skills_df.set_index('uuid')
-            existing_skills = existing_skills.set_index('uuid')
+        for _, new_skill_row in new_skills_df.iterrows():
+            skill_uuid = new_skill_row['uuid']
             
-            # Update existing records
-            skills_df.update(existing_skills)
-            skills_df = skills_df.reset_index()
-            updated_skills_count = len(existing_skills)
-        
-        # Handle new skills - assign new IDs
-        new_skills = new_skills_df[new_skills_mask]
-        if not new_skills.empty:
-            new_skills = new_skills.copy()
-            new_skills['id'] = range(next_id, next_id + len(new_skills))
-            skills_df = pd.concat([skills_df, new_skills], ignore_index=True)
-            new_skills_added_count = len(new_skills)
+            if skill_uuid in existing_uuids:
+                # Check if the existing skill is actually different
+                existing_skill_row = skills_df[skills_df['uuid'] == skill_uuid].iloc[0]
+                
+                # Compare all columns to see if there are actual differences
+                has_differences = False
+                for col in new_skill_row.index:
+                    if col == 'id':
+                        continue  # Ignore ID for comparison as requested
+                    if col in existing_skill_row.index:
+                        if pd.isna(new_skill_row[col]) and pd.isna(existing_skill_row[col]):
+                            continue  # Both are NaN, no difference
+                        elif new_skill_row[col] != existing_skill_row[col]:
+                            has_differences = True
+                            break
+                    else:
+                        # New column exists in new data but not in existing
+                        has_differences = True
+                        break
+                
+                # Only update if there are actual differences
+                if has_differences:
+                    # Update the existing skill (keep the original ID)
+                    mask = skills_df['uuid'] == skill_uuid
+                    for col in new_skill_row.index:
+                        if col != 'id' and col in skills_df.columns:  # Don't update ID
+                            skills_df.loc[mask, col] = new_skill_row[col]
+                    updated_skills_count += 1
+            else:
+                # Truly new skill, assign new ID and add it
+                new_skill_data = new_skill_row.to_dict()
+                new_skill_data['id'] = next_id
+                new_skill_df = pd.DataFrame([new_skill_data])
+                skills_df = pd.concat([skills_df, new_skill_df], ignore_index=True)
+                next_id += 1
+                new_skills_added_count += 1
 
     logger.info(f"Processed skills: {len(skills_df)} total skills ({new_skills_added_count} new, {updated_skills_count} updated)")
 
     if not skills_df.empty:
+        # Final check for any remaining duplicates (shouldn't happen with new logic)
         if skills_df['id'].duplicated().any():
             print_duplicate_data(skills_df.reset_index(), 'id', 'skills', verbose=verbose_duplicates)
             skills_df = skills_df.drop_duplicates(subset=['id'], keep='last')
@@ -780,24 +804,31 @@ def process_lookup_table_data(
     else:
         df = pd.DataFrame(columns=columns)
 
-    # Collect all data from jobs DataFrame into a single DataFrame
+    # Collect all unique data from jobs DataFrame
     all_data = []
+    seen_ids = set()
+    
     for _, job_row in jobs_df.iterrows():
         extracted_data = extractor_func(job_row)
         if extracted_data:
             if isinstance(extracted_data, list):
                 for item in extracted_data:
-                    if isinstance(item, dict):
-                        all_data.append(item)
-            elif isinstance(extracted_data, dict):
-                # Single object
-                all_data.append(extracted_data)
+                    if isinstance(item, dict) and id_column in item:
+                        item_id = item[id_column]
+                        if item_id not in seen_ids:
+                            all_data.append(item)
+                            seen_ids.add(item_id)
+            elif isinstance(extracted_data, dict) and id_column in extracted_data:
+                item_id = extracted_data[id_column]
+                if item_id not in seen_ids:
+                    all_data.append(extracted_data)
+                    seen_ids.add(item_id)
 
     if not all_data:
         logger.info(f"No {data_type_name} found in jobs data")
         return df
 
-    # Create DataFrame from all extracted data
+    # Create DataFrame from unique extracted data
     new_df = pd.DataFrame(all_data)
     
     if df.empty:
@@ -805,32 +836,48 @@ def process_lookup_table_data(
         new_added_count = len(new_df)
         df = new_df
     else:
-        # Merge with existing data
-        # First, identify which items are new vs existing based on id
+        # Process each item individually to check for actual differences
         existing_ids = set(df[id_column])
-        new_mask = ~new_df[id_column].isin(existing_ids)
         
-        # Handle existing items - update them
-        existing_items = new_df[~new_mask]
-        if not existing_items.empty:
-            # Update existing items by merging on id
-            df = df.set_index(id_column)
-            existing_items = existing_items.set_index(id_column)
+        for _, new_row in new_df.iterrows():
+            item_id = new_row[id_column]
             
-            # Update existing records
-            df.update(existing_items)
-            df = df.reset_index()
-            updated_count = len(existing_items)
-        
-        # Handle new items - add them directly
-        new_items = new_df[new_mask]
-        if not new_items.empty:
-            df = pd.concat([df, new_items], ignore_index=True)
-            new_added_count = len(new_items)
+            if item_id in existing_ids:
+                # Check if the existing item is actually different
+                existing_row = df[df[id_column] == item_id].iloc[0]
+                
+                # Compare all columns to see if there are actual differences
+                has_differences = False
+                for col in new_row.index:
+                    if col in existing_row.index:
+                        if pd.isna(new_row[col]) and pd.isna(existing_row[col]):
+                            continue  # Both are NaN, no difference
+                        elif new_row[col] != existing_row[col]:
+                            has_differences = True
+                            break
+                    else:
+                        # New column exists in new data but not in existing
+                        has_differences = True
+                        break
+                
+                # Only update if there are actual differences
+                if has_differences:
+                    # Update the existing row
+                    mask = df[id_column] == item_id
+                    for col in new_row.index:
+                        if col in df.columns:
+                            df.loc[mask, col] = new_row[col]
+                    updated_count += 1
+            else:
+                # Truly new item, add it
+                new_row_df = pd.DataFrame([new_row])
+                df = pd.concat([df, new_row_df], ignore_index=True)
+                new_added_count += 1
 
     logger.info(f"Processed {data_type_name}: {len(df)} total {data_type_name} ({new_added_count} new, {updated_count} updated)")
 
     if not df.empty:
+        # Final check for any remaining duplicates (shouldn't happen with new logic)
         if df[id_column].duplicated().any():
             print_duplicate_data(df.reset_index(), id_column, data_type_name, verbose=verbose_duplicates)
             df = df.drop_duplicates(subset=[id_column], keep='last')
