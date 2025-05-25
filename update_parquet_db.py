@@ -74,33 +74,6 @@ def read_raw_companies_data(raw_data_dir: str, next_date: str) -> Optional[List[
         logger.error(f"Error parsing companies data: {e}")
         return None
 
-def read_raw_jobs_data_as_dataframe(raw_data_dir: str, next_date: str) -> Optional[pd.DataFrame]:
-    """Read and parse the raw jobs JSON data directly into a pandas DataFrame."""
-    json_bytes = read_raw_json_data(raw_data_dir, next_date, "jobs")
-
-    if json_bytes is None:
-        return None
-
-    try:
-        # Parse JSON and extract results directly
-        data = orjson.loads(json_bytes)
-        if 'results' not in data:
-            logger.error("Jobs JSON data missing 'results' key")
-            return None
-        
-        jobs_list = data['results']
-        logger.info(f"Found {len(jobs_list)} jobs in raw data")
-        
-        # Convert to DataFrame
-        jobs_df = pd.json_normalize(jobs_list)
-        logger.info(f"Successfully parsed jobs into DataFrame with {len(jobs_df)} rows and {len(jobs_df.columns)} columns")
-        
-        return jobs_df
-
-    except Exception as e:
-        logger.error(f"Error parsing jobs data into DataFrame: {e}")
-        return None
-
 def read_raw_jobs_data(raw_data_dir: str, next_date: str) -> Optional[List[Job]]:
     """Read and parse the raw jobs JSON data."""
     json_bytes = read_raw_json_data(raw_data_dir, next_date, "jobs")
@@ -117,120 +90,6 @@ def read_raw_jobs_data(raw_data_dir: str, next_date: str) -> Optional[List[Job]]
     except Exception as e:
         logger.error(f"Error parsing jobs data: {e}")
         return None
-
-def process_skills_data_from_dataframe(jobs_df: pd.DataFrame, previous_skills_df: Optional[pd.DataFrame]) -> pd.DataFrame:
-    """Process skills data from jobs DataFrame, update skills DataFrame."""
-
-    new_skills_added_count = 0
-    updated_skills_count = 0
-
-    if previous_skills_df is not None and not previous_skills_df.empty:
-        if previous_skills_df.index.names != [None]:
-            skills_df = previous_skills_df.reset_index()
-        else:
-            skills_df = previous_skills_df.copy()
-
-        if 'uuid' not in skills_df.columns or 'id' not in skills_df.columns:
-            logger.warning("Previous skills DataFrame is missing 'uuid' or 'id' columns. Starting fresh.")
-            skills_df = pd.DataFrame(columns=['id', 'uuid', 'skill', 'confidence'])
-            next_id = 0
-        else:
-            # Ensure 'id' is integer type for proper max() calculation and lookups
-            skills_df['id'] = skills_df['id'].astype(int)
-            next_id = (skills_df['id'].max() + 1) if not skills_df.empty else 0
-    else:
-        skills_df = pd.DataFrame(columns=['id', 'uuid', 'skill', 'confidence'])
-        next_id = 0
-
-    # Extract skills from jobs DataFrame
-    all_skills_data = []
-    
-    # Look for skills columns - they'll be normalized as skills.0.uuid, skills.1.skill, etc.
-    skills_columns = [col for col in jobs_df.columns if col.startswith('skills.')]
-    
-    if not skills_columns:
-        logger.info("No skills columns found in jobs DataFrame")
-        return skills_df
-    
-    # Find all skill indices
-    skill_indices = set()
-    for col in skills_columns:
-        parts = col.split('.')
-        if len(parts) >= 2 and parts[1].isdigit():
-            skill_indices.add(int(parts[1]))
-    
-    logger.info(f"Found skills at indices: {sorted(skill_indices)}")
-    
-    # Process each job row to extract skills
-    for idx, job_row in jobs_df.iterrows():
-        # Extract skills from normalized columns
-        for skill_idx in skill_indices:
-            skill_data = {}
-            for attr in ['uuid', 'skill', 'confidence']:
-                col_name = f'skills.{skill_idx}.{attr}'
-                if col_name in job_row and pd.notna(job_row[col_name]):
-                    skill_data[attr] = job_row[col_name]
-            
-            if 'uuid' in skill_data:  # Only add if we have a UUID
-                all_skills_data.append(skill_data)
-
-    if not all_skills_data:
-        logger.info("No skills found in jobs DataFrame")
-        return skills_df
-
-    # Create DataFrame from all skills
-    new_skills_df = pd.DataFrame(all_skills_data)
-    
-    # Remove duplicates based on UUID
-    if not new_skills_df.empty:
-        new_skills_df = new_skills_df.drop_duplicates(subset=['uuid'], keep='last')
-    
-    if skills_df.empty:
-        # No previous data, assign IDs to all skills
-        new_skills_df['id'] = range(len(new_skills_df))
-        new_skills_added_count = len(new_skills_df)
-        skills_df = new_skills_df
-    else:
-        # Merge with existing skills data
-        # First, identify which skills are new vs existing
-        existing_uuids = set(skills_df['uuid'])
-        new_skills_mask = ~new_skills_df['uuid'].isin(existing_uuids)
-        
-        # Handle existing skills - update them
-        existing_skills = new_skills_df[~new_skills_mask]
-        if not existing_skills.empty:
-            # Update existing skills by merging on uuid
-            skills_df = skills_df.set_index('uuid')
-            existing_skills = existing_skills.set_index('uuid')
-            
-            # Update existing records
-            skills_df.update(existing_skills)
-            skills_df = skills_df.reset_index()
-            updated_skills_count = len(existing_skills)
-        
-        # Handle new skills - assign new IDs
-        new_skills = new_skills_df[new_skills_mask]
-        if not new_skills.empty:
-            new_skills = new_skills.copy()
-            new_skills['id'] = range(next_id, next_id + len(new_skills))
-            skills_df = pd.concat([skills_df, new_skills], ignore_index=True)
-            new_skills_added_count = len(new_skills)
-
-    logger.info(f"Processed skills: {len(skills_df)} total skills ({new_skills_added_count} new, {updated_skills_count} updated)")
-
-    if not skills_df.empty:
-        if skills_df['id'].duplicated().any():
-            logger.warning("Duplicate IDs found in skills data. Rectifying...")
-            skills_df = skills_df.drop_duplicates(subset=['id'], keep='last')
-
-        if skills_df['uuid'].duplicated().any():
-            logger.warning("Duplicate UUIDs found in skills data. Rectifying...")
-            skills_df = skills_df.drop_duplicates(subset=['uuid'], keep='last')
-
-        skills_df = skills_df.sort_values(by=['id', 'uuid'])
-        skills_df = skills_df.set_index(['id', 'uuid'])
-
-    return skills_df
 
 def process_skills_data(jobs: List[Job], previous_skills_df: Optional[pd.DataFrame]) -> pd.DataFrame:
     """Process skills data from jobs, update skills DataFrame, and replace job skills with IDs."""
@@ -328,8 +187,8 @@ def process_skills_data(jobs: List[Job], previous_skills_df: Optional[pd.DataFra
 
     return skills_df
 
-def update_companies_data_with_jobs_dataframe(jobs_df: pd.DataFrame, companies_df: pd.DataFrame) -> None:
-    """Update companies data with company information extracted from jobs DataFrame."""
+def update_companies_data_with_jobs_data(jobs: List[Job], companies_df: pd.DataFrame) -> None:
+    """Update companies data with company information extracted from jobs data."""
     
     if companies_df.empty:
         logger.warning("Companies DataFrame is empty, cannot update with jobs data")
@@ -341,49 +200,31 @@ def update_companies_data_with_jobs_dataframe(jobs_df: pd.DataFrame, companies_d
     else:
         companies_df_work = companies_df.copy()
     
-    # Extract all unique companies from jobs DataFrame
+    # Extract all unique companies from jobs into a list of dicts
     companies_data = []
     companies_seen = set()
     
-    # Look for company columns - they'll be normalized as hiring_company.uen, posted_company.name, etc.
-    hiring_company_cols = [col for col in jobs_df.columns if col.startswith('hiring_company.')]
-    posted_company_cols = [col for col in jobs_df.columns if col.startswith('posted_company.')]
-    
-    logger.info(f"Found {len(hiring_company_cols)} hiring company columns and {len(posted_company_cols)} posted company columns")
-    
-    for idx, job_row in jobs_df.iterrows():
+    for job in jobs:
         companies_to_process = []
         
-        # Extract hiring company data
-        if 'hiring_company.uen' in job_row and pd.notna(job_row['hiring_company.uen']):
-            hiring_company = {}
-            for col in hiring_company_cols:
-                attr = col.replace('hiring_company.', '')
-                if col in job_row and pd.notna(job_row[col]):
-                    hiring_company[attr] = job_row[col]
-            if hiring_company:
-                companies_to_process.append(hiring_company)
-        
-        # Extract posted company data (if different from hiring company)
-        if ('posted_company.uen' in job_row and pd.notna(job_row['posted_company.uen']) and
-            job_row.get('posted_company.uen') != job_row.get('hiring_company.uen')):
-            posted_company = {}
-            for col in posted_company_cols:
-                attr = col.replace('posted_company.', '')
-                if col in job_row and pd.notna(job_row[col]):
-                    posted_company[attr] = job_row[col]
-            if posted_company:
-                companies_to_process.append(posted_company)
+        # Add hiring company if it exists
+        if job.hiring_company and job.hiring_company.uen:
+            companies_to_process.append(job.hiring_company)
+            
+        # Add posted company if it exists and different from hiring company
+        if (job.posted_company and job.posted_company.uen and 
+            job.posted_company.uen != (job.hiring_company.uen if job.hiring_company else None)):
+            companies_to_process.append(job.posted_company)
         
         # Process each company found in this job
         for company in companies_to_process:
-            uen = company.get('uen')
-            if uen and uen not in companies_seen:
-                companies_seen.add(uen)
-                companies_data.append(company)
+            if company.uen not in companies_seen:
+                companies_seen.add(company.uen)
+                company_data = company.model_dump(by_alias=True, exclude_none=True)
+                companies_data.append(company_data)
     
     if not companies_data:
-        logger.info("No companies found in jobs DataFrame to update")
+        logger.info("No companies found in jobs data to update")
         return
     
     # Create DataFrame from companies data
@@ -418,7 +259,7 @@ def update_companies_data_with_jobs_dataframe(jobs_df: pd.DataFrame, companies_d
     # Reset index back to original state
     companies_df_work = companies_df_work.reset_index()
     
-    logger.info(f"Updated companies with jobs DataFrame: {updated_companies_count} companies updated from {len(companies_seen)} unique companies found in jobs")
+    logger.info(f"Updated companies with jobs data: {updated_companies_count} companies updated from {len(companies_seen)} unique companies found in jobs")
     
     # Update the original DataFrame with the changes
     if companies_df.index.names != [None]:
@@ -521,10 +362,10 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
     # Setup directories
     next_date_dir = setup_directories(db_data_dir, next_date)
     
-    # Read raw jobs data as DataFrame
-    jobs_df = read_raw_jobs_data_as_dataframe(raw_data_dir, next_date)
-    if jobs_df is None or jobs_df.empty:
-        logger.error("Failed to read jobs data as DataFrame, aborting")
+    # Read raw jobs data
+    jobs = read_raw_jobs_data(raw_data_dir, next_date)
+    if not jobs:
+        logger.error("Failed to read jobs data, aborting")
         return
 
     # Process Companies Data
@@ -534,16 +375,16 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
     companies_df = process_companies_data_from_new_file(companies, previous_companies_df)
 
     # process companies data combine with jobs data
-    update_companies_data_with_jobs_dataframe(jobs_df, companies_df)
+    update_companies_data_with_jobs_data(jobs, companies_df)
     
     # Save companies data
     companies_output_path = os.path.join(next_date_dir, f"{next_date}_companies.parquet")
     save_parquet_file(companies_df, companies_output_path, "companies")
     
-    # Process Skills Data using DataFrame approach
+    # Process Skills Data
     logger.info("Processing skills data...")
     previous_skills_df = read_previous_parquet(db_data_dir, previous_date, "skills")
-    skills_df = process_skills_data_from_dataframe(jobs_df, previous_skills_df)
+    skills_df = process_skills_data(jobs, previous_skills_df)
     
     # Save skills data
     skills_output_path = os.path.join(next_date_dir, f"{next_date}_skills.parquet")
@@ -553,32 +394,32 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
     lookup_tables_config = [
         {
             'name': 'districts',
-            'column_patterns': ['address.districts'],
+            'extractor': lambda job: job.address.districts if job.address and job.address.districts else None,
             'columns': ['id', 'sectors', 'region_id', 'location', 'region']
         },
         {
             'name': 'position_levels',
-            'column_patterns': ['position_levels'],
+            'extractor': lambda job: job.position_levels if job.position_levels else None,
             'columns': ['id', 'position']
         },
         {
             'name': 'employment_types',
-            'column_patterns': ['employment_types'],
+            'extractor': lambda job: job.employment_types if job.employment_types else None,
             'columns': ['id', 'employment_type']
         },
         {
             'name': 'status',
-            'column_patterns': ['status'],
+            'extractor': lambda job: job.status if job.status else None,
             'columns': ['id', 'job_status']
         },
         {
             'name': 'flexible_work_arrangements',
-            'column_patterns': ['flexible_work_arrangements'],
+            'extractor': lambda job: job.flexible_work_arrangements if job.flexible_work_arrangements else None,
             'columns': ['id', 'flexible_work_arrangement']
         },
         {
             'name': 'categories',
-            'column_patterns': ['categories'],
+            'extractor': lambda job: job.categories if job.categories else None,
             'columns': ['id', 'category']
         }
     ]
@@ -586,16 +427,16 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
     # Process all lookup tables using the configuration
     for config in lookup_tables_config:
         table_name = config['name']
-        column_patterns = config['column_patterns']
+        extractor_func = config['extractor']
         columns = config['columns']
         
         logger.info(f"Processing {table_name} data...")
         previous_df = read_previous_parquet(db_data_dir, previous_date, table_name)
-        processed_df = process_lookup_table_data_from_dataframe(
-            jobs_df=jobs_df,
+        processed_df = process_lookup_table_data(
+            jobs=jobs,
             previous_df=previous_df,
             data_type_name=table_name,
-            column_patterns=column_patterns,
+            extractor_func=extractor_func,
             columns=columns
         )
         
@@ -605,23 +446,23 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
     
     logger.info("Database update completed successfully!")
 
-def process_lookup_table_data_from_dataframe(
-    jobs_df: pd.DataFrame, 
+def process_lookup_table_data(
+    jobs: List[Job], 
     previous_df: Optional[pd.DataFrame], 
     data_type_name: str,
-    column_patterns: List[str],
+    extractor_func: callable,
     columns: List[str],
     id_column: str = 'id'
 ) -> pd.DataFrame:
     """
-    Generic function to process lookup table data from jobs DataFrame.
+    Generic function to process lookup table data from jobs.
     
     Args:
-        jobs_df: Jobs DataFrame
+        jobs: List of job objects
         previous_df: Previous DataFrame or None
         data_type_name: Name for logging (e.g., "districts", "employment_types")
-        column_patterns: List of column patterns to look for (e.g., ['address.districts'])
-        columns: List of column names for the resulting DataFrame
+        extractor_func: Function that takes a job and returns list of objects or None
+        columns: List of column names for the DataFrame
         id_column: Name of the ID column (default: 'id')
     
     Returns:
@@ -646,71 +487,24 @@ def process_lookup_table_data_from_dataframe(
     else:
         df = pd.DataFrame(columns=columns)
 
-    # Find columns matching the patterns
-    matching_columns = []
-    for pattern in column_patterns:
-        matching_columns.extend([col for col in jobs_df.columns if col.startswith(pattern)])
-
-    if not matching_columns:
-        logger.info(f"No {data_type_name} columns found in jobs DataFrame")
-        return df
-
-    # Collect all data from jobs DataFrame
+    # Collect all data from jobs into a single DataFrame
     all_data = []
-    
-    for idx, job_row in jobs_df.iterrows():
-        # Extract data based on column patterns
-        for pattern in column_patterns:
-            # Handle normalized columns (e.g., pattern.0.id, pattern.1.id, etc.)
-            pattern_cols = [col for col in matching_columns if col.startswith(pattern)]
-            
-            # Find indices for array-like data
-            indices = set()
-            for col in pattern_cols:
-                if '.' in col:
-                    parts = col.split('.')
-                    if len(parts) >= 2 and parts[1].isdigit():
-                        indices.add(int(parts[1]))
-            
-            # Extract data for each index
-            for idx_num in indices:
-                item_data = {}
-                for attr in ['id', 'sectors', 'region_id', 'location', 'region', 'position', 'employment_type', 
-                           'job_status', 'flexible_work_arrangement', 'category']:
-                    col_name = f'{pattern}.{idx_num}.{attr}'
-                    if col_name in job_row and pd.notna(job_row[col_name]):
-                        item_data[attr] = job_row[col_name]
-                
-                # Also check for direct non-indexed columns
-                direct_col = f'{pattern}.{attr}'
-                if direct_col in job_row and pd.notna(job_row[direct_col]) and attr not in item_data:
-                    item_data[attr] = job_row[direct_col]
-                
-                if id_column in item_data:  # Only add if we have an ID
-                    all_data.append(item_data)
-            
-            # Also handle direct non-indexed data
-            if not indices:
-                item_data = {}
-                for attr in ['id', 'sectors', 'region_id', 'location', 'region', 'position', 'employment_type', 
-                           'job_status', 'flexible_work_arrangement', 'category']:
-                    col_name = f'{pattern}.{attr}'
-                    if col_name in job_row and pd.notna(job_row[col_name]):
-                        item_data[attr] = job_row[col_name]
-                
-                if id_column in item_data:  # Only add if we have an ID
-                    all_data.append(item_data)
+    for job in jobs:
+        extracted_data = extractor_func(job)
+        if extracted_data:
+            if isinstance(extracted_data, list):
+                for item in extracted_data:
+                    all_data.append(item.model_dump())
+            else:
+                # Single object
+                all_data.append(extracted_data.model_dump())
 
     if not all_data:
-        logger.info(f"No {data_type_name} found in jobs DataFrame")
+        logger.info(f"No {data_type_name} found in jobs data")
         return df
 
     # Create DataFrame from all extracted data
     new_df = pd.DataFrame(all_data)
-    
-    # Remove duplicates based on ID
-    if not new_df.empty:
-        new_df = new_df.drop_duplicates(subset=[id_column], keep='last')
     
     if df.empty:
         # No previous data, use all new data
