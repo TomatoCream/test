@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime, date
 
 
@@ -120,7 +120,7 @@ class Company(BaseModel):
     )
     
     ssic_code: Optional[str] = Field(default=None, alias="ssicCode", description="Singapore Standard Industrial Classification code")
-    last_sync_date: datetime = Field(alias="lastSyncDate", description="Last synchronization date")
+    last_sync_date: Optional[datetime] = Field(default=None, alias="lastSyncDate", description="Last synchronization date")
     employee_count: Optional[int] = Field(default=None, alias="employeeCount", description="Number of employees in the company")
     uen: str = Field(description="Unique Entity Number of the company")
     logo_upload_path: Optional[str] = Field(
@@ -316,18 +316,7 @@ class CombinedResultsContainer(BaseModel):
         validate_assignment=True
     )
     
-    results: List[Company] = Field(description="List of company results")
-
-
-class JobResultsContainer(BaseModel):
-    """Root model for the job results container."""
-    
-    model_config = ConfigDict(
-        str_strip_whitespace=True,
-        validate_assignment=True
-    )
-    
-    results: List[Job] = Field(description="List of job results")
+    results: Union[List[Company], List[Job]] = Field(description="List of company or job results")
 
 
 # Example usage and validation
@@ -491,22 +480,32 @@ if __name__ == "__main__":
     # Validate the schemas
     try:
         # Test company schema
-        company_response = CombinedResultsContainer(**company_sample_data)
+        print("\nTesting Company Data with CombinedResultsContainer:")
+        company_container = CombinedResultsContainer(**company_sample_data)
         print("✅ Company schema validation successful!")
-        print(f"Number of companies: {len(company_response.results)}")
-        print(f"First company: {company_response.results[0].name}")
+        assert isinstance(company_container.results, list)
+        if company_container.results:
+            assert isinstance(company_container.results[0], Company)
+            print(f"Type of results: List[{type(company_container.results[0]).__name__}]")
+        print(f"Number of companies: {len(company_container.results)}")
+        if company_container.results:
+             print(f"First company: {company_container.results[0].name}")
         
         # Test job schema
-        job_response = JobResultsContainer(**job_sample_data)
+        print("\nTesting Job Data with CombinedResultsContainer:")
+        job_container = CombinedResultsContainer(**job_sample_data)
         print("✅ Job schema validation successful!")
-        print(f"Number of jobs: {len(job_response.results)}")
-        if job_response.results:
-            job = job_response.results[0]
+        assert isinstance(job_container.results, list)
+        if job_container.results:
+            assert isinstance(job_container.results[0], Job)
+            print(f"Type of results: List[{type(job_container.results[0]).__name__}]")
+        print(f"Number of jobs: {len(job_container.results)}")
+        if job_container.results:
+            job = job_container.results[0]
             print(f"First job title: {job.title}")
             print(f"Job UUID: {job.uuid}")
-            if job.hiring_company:
-                print(f"Hiring company: {job.hiring_company.name}")
-            if job.salary:
-                print(f"Salary range: {job.salary.minimum} - {job.salary.maximum}")
+
     except Exception as e:
-        print(f"❌ Schema validation failed: {e}") 
+        import traceback
+        print(f"❌ Schema validation failed: {e}")
+        print(traceback.format_exc()) 

@@ -5,9 +5,9 @@ import pandas as pd
 import os
 from datetime import datetime
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Union, cast
 import logging
-from schema_v2 import JobResultsContainer, Job, Skills, Company, CombinedResultsContainer
+from schema_v2 import Company, Job, Skills, CombinedResultsContainer
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -68,7 +68,7 @@ def read_raw_companies_data(raw_data_dir: str, next_date: str) -> Optional[List[
         # Validate and parse using Pydantic schema
         companies_container = CombinedResultsContainer.model_validate_json(json_bytes)
         logger.info(f"Successfully parsed {len(companies_container.results)} companies")
-        return companies_container.results
+        return cast(List[Company], companies_container.results)
 
     except Exception as e:
         logger.error(f"Error parsing companies data: {e}")
@@ -83,9 +83,9 @@ def read_raw_jobs_data(raw_data_dir: str, next_date: str) -> Optional[List[Job]]
 
     try:
         # Validate and parse using Pydantic schema
-        jobs_container = JobResultsContainer.model_validate_json(json_bytes)
+        jobs_container = CombinedResultsContainer.model_validate_json(json_bytes)
         logger.info(f"Successfully parsed {len(jobs_container.results)} jobs")
-        return jobs_container.results
+        return cast(List[Job], jobs_container.results)
 
     except Exception as e:
         logger.error(f"Error parsing jobs data: {e}")
