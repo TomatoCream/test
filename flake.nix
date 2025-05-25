@@ -28,6 +28,9 @@
 
             pandas
             orjson
+            matplotlib
+            seaborn
+            scipy
           ])
         myPython.pkgs;
       in {
