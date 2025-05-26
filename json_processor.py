@@ -88,7 +88,7 @@ def mappend(a: Any, b: Any) -> Any:
         for item in combined[1:]:
             result = mappend(result, item)
         
-        return [results]
+        return [result]
     
     # Different types - return the non-None value
     # This is a fallback; the spec doesn't explicitly handle mixed types
