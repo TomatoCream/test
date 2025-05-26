@@ -233,18 +233,18 @@ def update_companies_data_with_jobs_data(jobs_df: pd.DataFrame, companies_df: pd
         companies_to_process = []
         
         # Add hiring company if it exists
-        if 'hiring_company' in job_row and job_row['hiring_company'] is not None:
-            hiring_company = job_row['hiring_company']
+        if 'hiringCompany' in job_row and job_row['hiringCompany'] is not None:
+            hiring_company = job_row['hiringCompany']
             if isinstance(hiring_company, dict) and 'uen' in hiring_company and hiring_company['uen']:
                 companies_to_process.append(hiring_company)
             
         # Add posted company if it exists and different from hiring company
-        if 'posted_company' in job_row and job_row['posted_company'] is not None:
-            posted_company = job_row['posted_company']
+        if 'postedCompany' in job_row and job_row['postedCompany'] is not None:
+            posted_company = job_row['postedCompany']
             if isinstance(posted_company, dict) and 'uen' in posted_company and posted_company['uen']:
                 hiring_uen = None
-                if 'hiring_company' in job_row and job_row['hiring_company'] is not None:
-                    hiring_company = job_row['hiring_company']
+                if 'hiringCompany' in job_row and job_row['hiringCompany'] is not None:
+                    hiring_company = job_row['hiringCompany']
                     if isinstance(hiring_company, dict) and 'uen' in hiring_company:
                         hiring_uen = hiring_company['uen']
                 
@@ -491,26 +491,26 @@ def process_jobs_data(
         # Replace nested objects with IDs
         
         # Replace hiring company with ID
-        if 'hiring_company' in job_data and job_data['hiring_company'] is not None:
-            hiring_company = job_data['hiring_company']
+        if 'hiringCompany' in job_data and job_data['hiringCompany'] is not None:
+            hiring_company = job_data['hiringCompany']
             if isinstance(hiring_company, dict) and 'uen' in hiring_company and hiring_company['uen'] in companies_lookup:
                 job_data['hiring_company_id'] = companies_lookup[hiring_company['uen']]
             else:
                 job_data['hiring_company_id'] = None
         else:
             job_data['hiring_company_id'] = None
-        job_data.pop('hiring_company', None)
+        job_data.pop('hiringCompany', None)
         
         # Replace posted company with ID
-        if 'posted_company' in job_data and job_data['posted_company'] is not None:
-            posted_company = job_data['posted_company']
+        if 'postedCompany' in job_data and job_data['postedCompany'] is not None:
+            posted_company = job_data['postedCompany']
             if isinstance(posted_company, dict) and 'uen' in posted_company and posted_company['uen'] in companies_lookup:
                 job_data['posted_company_id'] = companies_lookup[posted_company['uen']]
             else:
                 job_data['posted_company_id'] = None
         else:
             job_data['posted_company_id'] = None
-        job_data.pop('posted_company', None)
+        job_data.pop('postedCompany', None)
         
         # Replace skills with IDs
         if 'skills' in job_data and job_data['skills'] is not None:
@@ -545,8 +545,8 @@ def process_jobs_data(
             job_data['district_ids'] = []
         
         # Replace position levels with IDs
-        if 'position_levels' in job_data and job_data['position_levels'] is not None:
-            position_levels_list = job_data['position_levels']
+        if 'positionLevels' in job_data and job_data['positionLevels'] is not None:
+            position_levels_list = job_data['positionLevels']
             position_level_ids = []
             if isinstance(position_levels_list, list):
                 for position_level_dict in position_levels_list:
@@ -555,11 +555,11 @@ def process_jobs_data(
             job_data['position_level_ids'] = position_level_ids
         else:
             job_data['position_level_ids'] = []
-        job_data.pop('position_levels', None)
+        job_data.pop('positionLevels', None)
         
         # Replace employment types with IDs
-        if 'employment_types' in job_data and job_data['employment_types'] is not None:
-            employment_types_list = job_data['employment_types']
+        if 'employmentTypes' in job_data and job_data['employmentTypes'] is not None:
+            employment_types_list = job_data['employmentTypes']
             employment_type_ids = []
             if isinstance(employment_types_list, list):
                 for employment_type_dict in employment_types_list:
@@ -568,7 +568,7 @@ def process_jobs_data(
             job_data['employment_type_ids'] = employment_type_ids
         else:
             job_data['employment_type_ids'] = []
-        job_data.pop('employment_types', None)
+        job_data.pop('employmentTypes', None)
         
         # Replace status with ID
         if 'status' in job_data and job_data['status'] is not None:
@@ -582,8 +582,8 @@ def process_jobs_data(
         job_data.pop('status', None)
         
         # Replace flexible work arrangements with IDs
-        if 'flexible_work_arrangements' in job_data and job_data['flexible_work_arrangements'] is not None:
-            fwa_list = job_data['flexible_work_arrangements']
+        if 'flexibleWorkArrangements' in job_data and job_data['flexibleWorkArrangements'] is not None:
+            fwa_list = job_data['flexibleWorkArrangements']
             fwa_ids = []
             if isinstance(fwa_list, list):
                 for fwa_dict in fwa_list:
@@ -592,7 +592,7 @@ def process_jobs_data(
             job_data['flexible_work_arrangement_ids'] = fwa_ids
         else:
             job_data['flexible_work_arrangement_ids'] = []
-        job_data.pop('flexible_work_arrangements', None)
+        job_data.pop('flexibleWorkArrangements', None)
         
         # Replace categories with IDs
         if 'categories' in job_data and job_data['categories'] is not None:
@@ -688,12 +688,12 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
         },
         {
             'name': 'position_levels',
-            'extractor': lambda job_row: job_row.get('position_levels') if job_row.get('position_levels') else None,
+            'extractor': lambda job_row: job_row.get('positionLevels') if job_row.get('positionLevels') else None,
             'columns': ['id', 'position']
         },
         {
             'name': 'employment_types',
-            'extractor': lambda job_row: job_row.get('employment_types') if job_row.get('employment_types') else None,
+            'extractor': lambda job_row: job_row.get('employmentTypes') if job_row.get('employmentTypes') else None,
             'columns': ['id', 'employment_type']
         },
         {
@@ -703,7 +703,7 @@ def update_databases(previous_date: str, next_date: str, raw_data_dir: str, db_d
         },
         {
             'name': 'flexible_work_arrangements',
-            'extractor': lambda job_row: job_row.get('flexible_work_arrangements') if job_row.get('flexible_work_arrangements') else None,
+            'extractor': lambda job_row: job_row.get('flexibleWorkArrangements') if job_row.get('flexibleWorkArrangements') else None,
             'columns': ['id', 'flexible_work_arrangement']
         },
         {
